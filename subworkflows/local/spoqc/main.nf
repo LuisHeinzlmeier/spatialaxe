@@ -127,25 +127,59 @@ workflow SPOQC {
     // HQCR
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    // Join every per-sample intermediate by meta, so outputs of different samples are never paired by arrival order
+    ch_cell_tmps = SPOQC_GENERAL.out.tmp
+        .join(SPOQC_BUBBLE.out.tmp)
+        .join(SPOQC_DOUBLET.out.tmp)
+        .join(SPOQC_VOID.out.tmp)
+        .join(SPOQC_CELL.out.tmp)
+
+    ch_sd_ann_tmps = ch_sd
+        .join(ch_annotation_path, by: 0, remainder: true)
+        .map { meta, spatialdata, annotation -> [meta, spatialdata, annotation ?: []] }
+        .join(ch_cell_tmps)
+
+    ch_hqcr_ident_in = ch_sd
+        .join(ch_cell_tmps)
+        .multiMap { meta, spatialdata, g, b, d, v, c ->
+            sd:      [meta, spatialdata]
+            general: g
+            bubble:  b
+            doublet: d
+            void_:   v
+            cell:    c
+        }
+
     SPOQC_HQCR_IDENT(
-        ch_sd,
+        ch_hqcr_ident_in.sd,
         "hqcr_ident",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
+        ch_hqcr_ident_in.general,
+        ch_hqcr_ident_in.bubble,
+        ch_hqcr_ident_in.doublet,
+        ch_hqcr_ident_in.void_,
+        ch_hqcr_ident_in.cell,
     )
 
+    ch_hqcr_celltype_in = ch_sd_ann_tmps
+        .multiMap { meta, spatialdata, annotation, g, b, d, v, c ->
+            sd:         [meta, spatialdata]
+            annotation: annotation
+            general:    g
+            bubble:     b
+            doublet:    d
+            void_:      v
+            cell:       c
+        }
+
     SPOQC_HQCR_CELLTYPE(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
+        ch_hqcr_celltype_in.sd,
+        ch_hqcr_celltype_in.annotation,
         "hqcr_celltype",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
+        ch_hqcr_celltype_in.general,
+        ch_hqcr_celltype_in.bubble,
+        ch_hqcr_celltype_in.doublet,
+        ch_hqcr_celltype_in.void_,
+        ch_hqcr_celltype_in.cell,
     )
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -212,16 +246,22 @@ workflow SPOQC {
     ch_sd
         .join(ch_annotation_path, by: 0, remainder: true)
         .map { meta, spatialdata, annotation -> [meta, spatialdata, annotation ?: []] }
+        .join(ch_cell_tmps)
         .combine(ch_stainings, by: 0)
-        .map { meta, spatialdata, annotation, staining -> [[meta, staining], meta, spatialdata, annotation, staining] }
+        .map { meta, spatialdata, annotation, g, b, d, v, c, staining -> [[meta, staining], meta, spatialdata, annotation, staining, g, b, d, v, c] }
         .join(
             SPOQC_HQPR_CLUSTERING.out.mask.map { meta, staining, f -> [[meta, staining], f] }
                 .join(SPOQC_HQPR_REFINEMENT.out.mask_smoothed.map { meta, staining, f -> [[meta, staining], f] })
         )
-        .multiMap { _key, meta, spatialdata, annotation, staining, mask, mask_smoothed ->
+        .multiMap { _key, meta, spatialdata, annotation, staining, g, b, d, v, c, mask, mask_smoothed ->
             sd:         [meta, spatialdata, staining]
             annotation: [annotation, staining]
             masks:      [staining, mask, mask_smoothed]
+            general:    [g, staining]
+            bubble:     [b, staining]
+            doublet:    [d, staining]
+            void_:      [v, staining]
+            cell:       [c, staining]
         }
         .set { ch_sd_annotation_stainings }
 
@@ -229,11 +269,11 @@ workflow SPOQC {
         ch_sd_annotation_stainings.sd,
         ch_sd_annotation_stainings.annotation,
         "hqpr_celltype",
-        SPOQC_GENERAL.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_BUBBLE.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_DOUBLET.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_VOID.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_CELL.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
+        ch_sd_annotation_stainings.general,
+        ch_sd_annotation_stainings.bubble,
+        ch_sd_annotation_stainings.doublet,
+        ch_sd_annotation_stainings.void_,
+        ch_sd_annotation_stainings.cell,
         ch_sd_annotation_stainings.masks,
     )
 
@@ -245,10 +285,17 @@ workflow SPOQC {
         "hqtr_metrices",
     )
 
+    ch_hqtr_ac_in = ch_sd
+        .join(SPOQC_AMBIENT.out.tmp)
+        .multiMap { meta, spatialdata, a ->
+            sd:      [meta, spatialdata]
+            ambient: a
+        }
+
     SPOQC_HQTR_AC(
-        ch_sd,
+        ch_hqtr_ac_in.sd,
         "hqtr_ac",
-        SPOQC_AMBIENT.out.tmp.map { _meta, f -> f },
+        ch_hqtr_ac_in.ambient,
     )
 
     SPOQC_HQTR_QV(
@@ -256,37 +303,77 @@ workflow SPOQC {
         "hqtr_qv",
     )
 
+    ch_hqtr_clustering_in = ch_sd
+        .join(SPOQC_HQTR_METRICES.out.metrices)
+        .join(SPOQC_HQTR_QV.out.tmp)
+        .join(SPOQC_HQTR_AC.out.tmp)
+        .multiMap { meta, spatialdata, m, q, a ->
+            sd:       [meta, spatialdata]
+            metrices: m
+            qv:       q
+            ac:       a
+        }
+
     SPOQC_HQTR_CLUSTERING(
-        ch_sd,
+        ch_hqtr_clustering_in.sd,
         "hqtr_clustering",
-        SPOQC_HQTR_METRICES.out.metrices.map { _meta, f -> f },
-        SPOQC_HQTR_QV.out.tmp.map { _meta, f -> f },
-        SPOQC_HQTR_AC.out.tmp.map { _meta, f -> f },
+        ch_hqtr_clustering_in.metrices,
+        ch_hqtr_clustering_in.qv,
+        ch_hqtr_clustering_in.ac,
     )
+
+    ch_hqtr_refinement_in = ch_sd
+        .join(SPOQC_HQTR_CLUSTERING.out.mask)
+        .multiMap { meta, spatialdata, m ->
+            sd:   [meta, spatialdata]
+            mask: m
+        }
 
     SPOQC_HQTR_REFINEMENT(
-        ch_sd,
+        ch_hqtr_refinement_in.sd,
         "hqtr_refinement",
-        SPOQC_HQTR_CLUSTERING.out.mask.map { _meta, f -> f },
+        ch_hqtr_refinement_in.mask,
     )
+
+    ch_hqtr_bbox_in = ch_sd
+        .join(SPOQC_HQTR_REFINEMENT.out.mask_smoothed)
+        .multiMap { meta, spatialdata, m ->
+            sd:            [meta, spatialdata]
+            mask_smoothed: m
+        }
 
     SPOQC_HQTR_BOUNDING_BOX(
-        ch_sd,
+        ch_hqtr_bbox_in.sd,
         "hqtr_bounding_box",
-        SPOQC_HQTR_REFINEMENT.out.mask_smoothed.map { _meta, f -> f },
+        ch_hqtr_bbox_in.mask_smoothed,
     )
 
+    ch_hqtr_celltype_in = ch_sd_ann_tmps
+        .join(SPOQC_HQTR_CLUSTERING.out.mask)
+        .join(SPOQC_HQTR_REFINEMENT.out.mask_smoothed)
+        .multiMap { meta, spatialdata, annotation, g, b, d, v, c, m, ms ->
+            sd:            [meta, spatialdata]
+            annotation:    annotation
+            general:       g
+            bubble:        b
+            doublet:       d
+            void_:         v
+            cell:          c
+            mask:          m
+            mask_smoothed: ms
+        }
+
     SPOQC_HQTR_CELLTYPE(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
+        ch_hqtr_celltype_in.sd,
+        ch_hqtr_celltype_in.annotation,
         "hqtr_celltype",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
-        SPOQC_HQTR_CLUSTERING.out.mask.map { _meta, f -> f },
-        SPOQC_HQTR_REFINEMENT.out.mask_smoothed.map { _meta, f -> f },
+        ch_hqtr_celltype_in.general,
+        ch_hqtr_celltype_in.bubble,
+        ch_hqtr_celltype_in.doublet,
+        ch_hqtr_celltype_in.void_,
+        ch_hqtr_celltype_in.cell,
+        ch_hqtr_celltype_in.mask,
+        ch_hqtr_celltype_in.mask_smoothed,
     )
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
