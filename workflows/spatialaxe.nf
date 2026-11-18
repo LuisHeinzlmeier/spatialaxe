@@ -389,7 +389,9 @@ workflow SPATIALAXE {
     ch_stainings = ch_input.flatMap { meta, _bundle, _image, _annotation, stainings ->
         def staining_list = (stainings instanceof List)
             ? stainings
-            : stainings.tokenize(';')*.toInteger()
+            : (stainings instanceof Integer)
+                ? [stainings]
+                : (stainings ? stainings.toString().tokenize(';')*.toInteger() : [])
         staining_list.collect { staining -> [meta, staining] }
     }
 
