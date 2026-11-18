@@ -81,6 +81,11 @@ workflow SPOQC {
 
     main:
 
+    def until_masks = params.spoqc_until == 'masks'
+    if (!(params.spoqc_until in ['masks', 'report'])) {
+        error("--spoqc_until must be 'masks' or 'report', got '${params.spoqc_until}'")
+    }
+
     // ---------------------------------------------------------------------------------------
     // Annotation: use the samplesheet annotation if given, else spoQC's unsupervised annotation
     // ---------------------------------------------------------------------------------------
@@ -157,72 +162,78 @@ workflow SPOQC {
         .mix(SPOQC_HQTR_REFINEMENT.out.out.map { meta, d -> [meta, 'hqtr', '', d] })
 
 
-    // -----------------------------------------------------------------------------------
-    // Cell type refinements, bounding boxes, combined masks
-    // -----------------------------------------------------------------------------------
+    ch_report = channel.empty()
 
-    ch_cell_metrics = [SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out]
+    if (!until_masks) {
 
-    SPOQC_HQCR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQCR_IDENT.out.out]), "hqcr_celltype", "")
-    SPOQC_HQTR_BOUNDING_BOX(withUpstream(ch_base_noann, [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_bounding_box", "")
-    SPOQC_HQTR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_celltype", "")
+        // -----------------------------------------------------------------------------------
+        // Cell type refinements, bounding boxes, combined masks
+        // -----------------------------------------------------------------------------------
 
-    ch_bbox_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref], []))
-    SPOQC_HQPR_BOUNDING_BOX(ch_bbox_in.data, "hqpr_bounding_box", ch_bbox_in.st)
-    ch_hqpr_bbox = SPOQC_HQPR_BOUNDING_BOX.out.out_st.map { meta, st, d -> [meta, st, d] }
+        ch_cell_metrics = [SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out]
 
-    ch_ct_in = stIn(withUpstreamSt(ch_base_st, [ch_hqpr_ref], ch_cell_metrics))
-    SPOQC_HQPR_CELLTYPE(ch_ct_in.data, "hqpr_celltype", ch_ct_in.st)
-    ch_hqpr_ct = SPOQC_HQPR_CELLTYPE.out.out_st.map { meta, st, d -> [meta, st, d] }
+        SPOQC_HQCR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQCR_IDENT.out.out]), "hqcr_celltype", "")
+        SPOQC_HQTR_BOUNDING_BOX(withUpstream(ch_base_noann, [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_bounding_box", "")
+        SPOQC_HQTR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_celltype", "")
 
-    ch_cm_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref],
-        [SPOQC_HQCR_IDENT.out.out, SPOQC_HQTR_REFINEMENT.out.out]))
-    SPOQC_COMBINE_MASKS(ch_cm_in.data, "combine_masks", ch_cm_in.st)
-    ch_cm = SPOQC_COMBINE_MASKS.out.out_st.map { meta, st, d -> [meta, st, d] }
+        ch_bbox_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref], []))
+        SPOQC_HQPR_BOUNDING_BOX(ch_bbox_in.data, "hqpr_bounding_box", ch_bbox_in.st)
+        ch_hqpr_bbox = SPOQC_HQPR_BOUNDING_BOX.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // -----------------------------------------------------------------------------------
-    // Extra QC
-    // -----------------------------------------------------------------------------------
+        ch_ct_in = stIn(withUpstreamSt(ch_base_st, [ch_hqpr_ref], ch_cell_metrics))
+        SPOQC_HQPR_CELLTYPE(ch_ct_in.data, "hqpr_celltype", ch_ct_in.st)
+        ch_hqpr_ct = SPOQC_HQPR_CELLTYPE.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    SPOQC_TRANSCRIPTQC(withUpstream(ch_base, []), "transcriptqc", "")
-    SPOQC_CELLCYCLEQC(withUpstream(ch_base, []), "cellcycleqc", "")
-    SPOQC_MODELQC(withUpstream(ch_base_noann, []), "modelqc", "")
-    SPOQC_WHOLE_SLIDE_QC(withUpstream(ch_base_noann, []), "whole_slide_qc", "")
+        ch_cm_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref],
+            [SPOQC_HQCR_IDENT.out.out, SPOQC_HQTR_REFINEMENT.out.out]))
+        SPOQC_COMBINE_MASKS(ch_cm_in.data, "combine_masks", ch_cm_in.st)
+        ch_cm = SPOQC_COMBINE_MASKS.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // -----------------------------------------------------------------------------------
-    // Analysis (all stainings of a sample) and final report
-    // -----------------------------------------------------------------------------------
+        // -----------------------------------------------------------------------------------
+        // Extra QC
+        // -----------------------------------------------------------------------------------
 
-    ch_all_st = ch_hqpr_met.mix(ch_hqpr_clu, ch_hqpr_ref, ch_hqpr_bbox, ch_hqpr_ct, ch_cm)
-        .map { meta, _st, d -> [meta, d] }
-        .groupTuple(by: 0)
+        SPOQC_TRANSCRIPTQC(withUpstream(ch_base, []), "transcriptqc", "")
+        SPOQC_CELLCYCLEQC(withUpstream(ch_base, []), "cellcycleqc", "")
+        SPOQC_MODELQC(withUpstream(ch_base_noann, []), "modelqc", "")
+        SPOQC_WHOLE_SLIDE_QC(withUpstream(ch_base_noann, []), "whole_slide_qc", "")
 
-    ch_analysis_ups = [
-        SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out,
-        SPOQC_HQCR_IDENT.out.out, SPOQC_HQCR_CELLTYPE.out.out,
-        SPOQC_AMBIENTQC.out.out, SPOQC_HQTR_METRICES.out.out, SPOQC_HQTR_QV.out.out, SPOQC_HQTR_AC.out.out,
-        SPOQC_HQTR_CLUSTERING.out.out, SPOQC_HQTR_REFINEMENT.out.out, SPOQC_HQTR_BOUNDING_BOX.out.out,
-        SPOQC_HQTR_CELLTYPE.out.out,
-    ]
-    ch_analysis_in = withUpstream(ch_base, ch_analysis_ups)
-        .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
-        .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
+        // -----------------------------------------------------------------------------------
+        // Analysis (all stainings of a sample) and final report
+        // -----------------------------------------------------------------------------------
 
-    SPOQC_ANALYSIS_OVERVIEW(ch_analysis_in, "analysis_overview", "")
-    SPOQC_ANALYSIS_CATEGORY(ch_analysis_in, "analysis_category", "")
-    SPOQC_ANALYSIS_CLUSTER(ch_analysis_in, "analysis_cluster", "")
+        ch_all_st = ch_hqpr_met.mix(ch_hqpr_clu, ch_hqpr_ref, ch_hqpr_bbox, ch_hqpr_ct, ch_cm)
+            .map { meta, _st, d -> [meta, d] }
+            .groupTuple(by: 0)
 
-    ch_report_in = withUpstream(ch_base, ch_analysis_ups + [
-            SPOQC_TRANSCRIPTQC.out.out, SPOQC_CELLCYCLEQC.out.out, SPOQC_MODELQC.out.out, SPOQC_WHOLE_SLIDE_QC.out.out,
-            SPOQC_ANALYSIS_OVERVIEW.out.out, SPOQC_ANALYSIS_CATEGORY.out.out, SPOQC_ANALYSIS_CLUSTER.out.out,
-        ])
-        .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
-        .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
+        ch_analysis_ups = [
+            SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out,
+            SPOQC_HQCR_IDENT.out.out, SPOQC_HQCR_CELLTYPE.out.out,
+            SPOQC_AMBIENTQC.out.out, SPOQC_HQTR_METRICES.out.out, SPOQC_HQTR_QV.out.out, SPOQC_HQTR_AC.out.out,
+            SPOQC_HQTR_CLUSTERING.out.out, SPOQC_HQTR_REFINEMENT.out.out, SPOQC_HQTR_BOUNDING_BOX.out.out,
+            SPOQC_HQTR_CELLTYPE.out.out,
+        ]
+        ch_analysis_in = withUpstream(ch_base, ch_analysis_ups)
+            .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
+            .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
 
-    SPOQC_FINAL_REPORT(ch_report_in, "final_report", "")
-    ch_report = SPOQC_FINAL_REPORT.out.out
+        SPOQC_ANALYSIS_OVERVIEW(ch_analysis_in, "analysis_overview", "")
+        SPOQC_ANALYSIS_CATEGORY(ch_analysis_in, "analysis_category", "")
+        SPOQC_ANALYSIS_CLUSTER(ch_analysis_in, "analysis_cluster", "")
+
+        ch_report_in = withUpstream(ch_base, ch_analysis_ups + [
+                SPOQC_TRANSCRIPTQC.out.out, SPOQC_CELLCYCLEQC.out.out, SPOQC_MODELQC.out.out, SPOQC_WHOLE_SLIDE_QC.out.out,
+                SPOQC_ANALYSIS_OVERVIEW.out.out, SPOQC_ANALYSIS_CATEGORY.out.out, SPOQC_ANALYSIS_CLUSTER.out.out,
+            ])
+            .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
+            .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
+
+        SPOQC_FINAL_REPORT(ch_report_in, "final_report", "")
+
+        ch_report = SPOQC_FINAL_REPORT.out.out
+    }
 
     emit:
     masks  = ch_masks       // channel: [ val(meta), val(modality), val(staining), path(out) ] - final probability maps
-    report = ch_report      // channel: [ val(meta), path(out) ]
+    report = ch_report      // channel: [ val(meta), path(out) ] - empty with --spoqc_until masks
 }
