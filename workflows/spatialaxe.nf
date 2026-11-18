@@ -239,7 +239,9 @@ workflow SPATIALAXE {
         }
 
         def missing_required = bundle_required_files.findAll { check -> !bundle_path.resolve(check).exists() }
-        if (missing_required) {
+        if (missing_required && params.reuse_spatialdata) {
+            log.warn("⚠️ Missing file(s) in xenium bundle '${bundle}': ${missing_required} (ignored: --reuse_spatialdata)")
+        } else if (missing_required) {
             error("❌ Missing required file(s) in xenium bundle '${bundle}': ${missing_required}")
         }
 
@@ -633,7 +635,7 @@ workflow SPATIALAXE {
     */
 
     // run spatialdata modules to generate sd objects in image or coordinate mode
-    if (mode == 'image' || mode == 'coordinate' || mode == 'qc') {
+    if ((mode == 'image' || mode == 'coordinate' || mode == 'qc') && !params.reuse_spatialdata) {
 
         SPATIALDATA_WRITE_META_MERGE(
             ch_bundle_path,
@@ -667,8 +669,12 @@ workflow SPATIALAXE {
 
 
         if (spoqc){
+            def ch_sd_for_spoqc = params.reuse_spatialdata
+                ? channel.fromPath(params.reuse_spatialdata).splitCsv(header: true)
+                    .map { row -> [[id: row.sample], file(row.spatialdata, checkIfExists: true)] }
+                : SPATIALDATA_WRITE_META_MERGE.out.sd_raw_bundle
             SPOQC (
-                SPATIALDATA_WRITE_META_MERGE.out.sd_raw_bundle,
+                ch_sd_for_spoqc,
                 ch_annotation,
                 ch_stainings,
             )
