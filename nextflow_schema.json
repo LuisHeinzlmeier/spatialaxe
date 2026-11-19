@@ -411,6 +411,24 @@
             "properties": {
                 "spoqc": {
                     "type": "boolean"
+                },
+                "spoqc_until": {
+                    "type": "string",
+                    "default": "report",
+                    "enum": ["report", "masks"],
+                    "description": "How far spoQC runs: 'masks' stops as soon as the final per-pixel probability maps of HQCR, HQPR and HQTR exist; 'report' runs the full QC with analysis and report.",
+                    "fa_icon": "fas fa-stop-circle"
+                },
+                "spoqc_container": {
+                    "type": "string",
+                    "default": "heylf/spoqc:0.0.1",
+                    "description": "Container image used for all spoQC steps.",
+                    "fa_icon": "fab fa-docker"
+                },
+                "spoqc_pythonpath": {
+                    "type": "string",
+                    "description": "Optional path(s) put in front of PYTHONPATH inside the spoQC container, to run a spoQC checkout (e.g. a fork with fixes) with the container's dependencies.",
+                    "fa_icon": "fas fa-folder-open"
                 }
             }
         },

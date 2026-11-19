@@ -1,596 +1,239 @@
 //
-// generate spatialdata object from the spatialxe layers
+// spoQC (>= 0.1) quality control.
 //
+// Every spoQC step runs as one SPOQC_STEP task. Steps exchange data through spoQC's tmp and report
+// folders; each task gets the output folders of the steps it depends on and merges them (as links).
+// The dependencies below follow the spoQC metric/prior definitions (needs_metrics / needs_priors).
 
-include { SPATIALDATA_WRITE as SPATIALDATA_WRITE_RAW_BUNDLE       } from '../../../modules/local/spatialdata/write/main'
-// spoQC general stuff
-include { SPOQC_ANNOTATION       } from '../../../modules/local/spoQC/annotation/main'
-include { SPOQC_WHOLE_SLIDE       } from '../../../modules/local/spoQC/whole_slide/main'
-include { SPOQC_GENERAL       } from '../../../modules/local/spoQC/general/main'
-include { SPOQC_BUBBLE       } from '../../../modules/local/spoQC/bubble/main'
-include { SPOQC_DOUBLET       } from '../../../modules/local/spoQC/doublet/main'
-include { SPOQC_VOID       } from '../../../modules/local/spoQC/void/main'
-include { SPOQC_CELL       } from '../../../modules/local/spoQC/cell/main'
-include { SPOQC_AMBIENT    } from '../../../modules/local/spoQC/ambient/main'
-// spoQC hqcr
-include { SPOQC_HQCR_IDENT       } from '../../../modules/local/spoQC/hqcr_ident/main'
-include { SPOQC_HQCR_CELLTYPE       } from '../../../modules/local/spoQC/hqcr_celltype/main'
-// spoQC hqpr
-include { SPOQC_HQPR_METRICES       } from '../../../modules/local/spoQC/hqpr_metrices/main'
-include { SPOQC_HQPR_CLUSTERING       } from '../../../modules/local/spoQC/hqpr_clustering/main'
-include { SPOQC_HQPR_REFINEMENT       } from '../../../modules/local/spoQC/hqpr_refinement/main'
-include { SPOQC_HQPR_BOUNDING_BOX       } from '../../../modules/local/spoQC/hqpr_bounding_box/main'
-include { SPOQC_HQPR_CELLTYPE       } from '../../../modules/local/spoQC/hqpr_celltype/main'
-// spoQC hqtr
-include { SPOQC_HQTR_METRICES       } from '../../../modules/local/spoQC/hqtr_metrices/main'
-include { SPOQC_HQTR_AC       } from '../../../modules/local/spoQC/hqtr_ac/main'
-include { SPOQC_HQTR_QV       } from '../../../modules/local/spoQC/hqtr_qv/main'
-include { SPOQC_HQTR_CLUSTERING       } from '../../../modules/local/spoQC/hqtr_clustering/main'
-include { SPOQC_HQTR_REFINEMENT       } from '../../../modules/local/spoQC/hqtr_refinement/main'
-include { SPOQC_HQTR_BOUNDING_BOX       } from '../../../modules/local/spoQC/hqtr_bounding_box/main'
-include { SPOQC_HQTR_CELLTYPE       } from '../../../modules/local/spoQC/hqtr_celltype/main'
-// spoQC downstream
-include { SPOQC_COMBINE_MASKS       } from '../../../modules/local/spoQC/combine_masks/main'
-include { SPOQC_TRANSCRIPT       } from '../../../modules/local/spoQC/transcript/main'
-include { SPOQC_CELLCYCLE       } from '../../../modules/local/spoQC/cellcycle/main'
-include { SPOQC_MODEL       } from '../../../modules/local/spoQC/model/main'
-include { SPOQC_MARKER       } from '../../../modules/local/spoQC/marker/main'
-// spoQC final analysis
-include { SPOQC_ANALYSIS_OVERVIEW       } from '../../../modules/local/spoQC/analysis_overview/main'
-include { SPOQC_ANALYSIS_CATEGORY       } from '../../../modules/local/spoQC/analysis_category/main'
-include { SPOQC_ANALYSIS_CLUSTER       } from '../../../modules/local/spoQC/analysis_cluster/main'
-// spoQC final report
-include { SPOQC_FINALREPORT       } from '../../../modules/local/spoQC/finalreport/main'
+include { SPOQC_STEP as SPOQC_ANNOTATION        } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_GENERALQC         } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_DOUBLETQC         } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_VOIDQC            } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_CELLQC            } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQCR_IDENT        } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQPR_METRICES     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQPR_CLUSTERING   } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQPR_REFINEMENT   } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_AMBIENTQC         } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_METRICES     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_QV           } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_AC           } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_CLUSTERING   } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_REFINEMENT   } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQCR_CELLTYPE     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQPR_BOUNDING_BOX } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQPR_CELLTYPE     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_BOUNDING_BOX } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_HQTR_CELLTYPE     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_COMBINE_MASKS     } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_TRANSCRIPTQC      } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_CELLCYCLEQC       } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_MODELQC           } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_WHOLE_SLIDE_QC    } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_ANALYSIS_OVERVIEW } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_ANALYSIS_CATEGORY } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_ANALYSIS_CLUSTER  } from '../../../modules/local/spoQC/step/main'
+include { SPOQC_STEP as SPOQC_FINAL_REPORT      } from '../../../modules/local/spoQC/step/main'
+
+// -------------------------------------------------------------------------------------------
+// Helpers: build the [meta, spatialdata, annotation, [upstream out folders]] input tuples
+// -------------------------------------------------------------------------------------------
+
+// ch_base: [meta, spatialdata, annotation]; ups: list of channels [meta, out]
+def withUpstream(ch_base, List ups) {
+    def ch = ch_base.map { meta, sd, ann -> [meta, sd, ann, []] }
+    ups.each { up ->
+        ch = ch.join(up, by: 0).map { meta, sd, ann, dirs, d -> [meta, sd, ann, dirs + [d]] }
+    }
+    return ch
+}
+
+// Same per [meta, staining]: ups_st are [meta, staining, out], ups_sample ([meta, out]) are
+// broadcast to every staining of the sample. Returns [meta, spatialdata, annotation, dirs, staining].
+def withUpstreamSt(ch_base_st, List ups_st, List ups_sample) {
+    def ch = ch_base_st.map { meta, st, sd, ann -> [[meta, st], meta, st, sd, ann, []] }
+    ups_st.each { up ->
+        ch = ch.join(up.map { meta, st, d -> [[meta, st], d] }, by: 0)
+            .map { key, meta, st, sd, ann, dirs, d -> [key, meta, st, sd, ann, dirs + [d]] }
+    }
+    ups_sample.each { up ->
+        ch = ch.map { key, meta, st, sd, ann, dirs -> [meta, key, st, sd, ann, dirs] }
+            .combine(up, by: 0)
+            .map { meta, key, st, sd, ann, dirs, d -> [key, meta, st, sd, ann, dirs + [d]] }
+    }
+    return ch.map { _key, meta, st, sd, ann, dirs -> [meta, sd, ann, dirs, st] }
+}
+
+// Split [meta, spatialdata, annotation, dirs, staining] into the process inputs.
+def stIn(ch) {
+    return ch.multiMap { meta, sd, ann, dirs, st ->
+        data: [meta, sd, ann, dirs]
+        st: st
+    }
+}
 
 workflow SPOQC {
 
     take:
-    ch_sd                   // channel: [ val(meta), [ "path-to-spatialdata-bundle" ] ]
-    ch_annotation_src       // channel: [ val(meta), "path-to-annotation-file" ]
-    ch_stainings            // channel: [ val(meta), val(staining) ] - one item per sample x its own staining
+    ch_sd                   // channel: [ val(meta), path(spatialdata) ]
+    ch_annotation_src       // channel: [ val(meta), path(annotation) or [] ]
+    ch_stainings            // channel: [ val(meta), val(staining) ] - one item per sample x staining
 
     main:
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // General
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def until_masks = params.spoqc_until == 'masks'
+    if (!(params.spoqc_until in ['masks', 'report'])) {
+        error("--spoqc_until must be 'masks' or 'report', got '${params.spoqc_until}'")
+    }
 
-    // Keep only actual, usable annotations (non-null and not an empty list).
-    ch_annotation_present = ch_annotation_src.filter { _meta, a -> a && (!(a instanceof List) || !a.isEmpty()) }
+    // ---------------------------------------------------------------------------------------
+    // Annotation: use the samplesheet annotation if given, else spoQC's unsupervised annotation
+    // ---------------------------------------------------------------------------------------
 
-    // Pair each sample's spatialdata bundle with its own annotation by meta.id.
-    ch_sd
-        .join(ch_annotation_src, by: 0)
-        .multiMap { meta, spatialdata, annotation ->
-            sd:         [meta, spatialdata]
-            annotation: annotation
+    ch_ann_in = ch_sd.join(ch_annotation_src, by: 0, remainder: true)
+        .map { meta, sd, ann -> [meta, sd, ann ?: []] }
+        .branch { _meta, _sd, ann ->
+            given: ann
+            missing: true
         }
-        .set { ch_sd_annotation_src }
 
     SPOQC_ANNOTATION(
-        ch_sd_annotation_src.sd,
-        ch_sd_annotation_src.annotation,
+        ch_ann_in.missing.map { meta, sd, _ann -> [meta, sd, [], []] },
         "annotation",
-    )
-    ch_annotation_path = ch_annotation_present.mix(
-        SPOQC_ANNOTATION.out.annotation
+        "",
     )
 
-    // Shared join of ch_sd + ch_annotation_path by meta.id, split back into
-    // the two positional args each downstream module expects.
-    ch_sd
-        .join(ch_annotation_path, by: 0, remainder: true)
-        .multiMap { meta, spatialdata, annotation ->
-            sd:         [meta, spatialdata]
-            annotation: annotation ?: []
-        }
-        .set { ch_sd_annotation }
+    ch_base = ch_ann_in.given
+        .mix(ch_ann_in.missing.join(SPOQC_ANNOTATION.out.annotation, by: 0).map { meta, sd, _a, ann -> [meta, sd, ann] })
+    // Steps that do not use the annotation start from the SpatialData directly, so they run in
+    // parallel with the annotation instead of waiting for it.
+    ch_base_noann = ch_sd.map { meta, sd -> [meta, sd, []] }
+    ch_base_st = ch_base.combine(ch_stainings, by: 0).map { meta, sd, ann, st -> [meta, st, sd, ann] }
+    ch_base_st_noann = ch_sd.combine(ch_stainings, by: 0).map { meta, sd, st -> [meta, st, sd, []] }
 
-    SPOQC_GENERAL(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
-        "generalqc",
-    )
+    // ---------------------------------------------------------------------------------------
+    // HQCR: cell metrics -> hqcr_ident  (final HQCR probability map)
+    // ---------------------------------------------------------------------------------------
 
-    SPOQC_WHOLE_SLIDE(
-        ch_sd,
-        "whole_slide_qc",
-    )
-
-    SPOQC_BUBBLE(
-        ch_sd,
-        "bubbleqc",
-    )
-
-    SPOQC_DOUBLET(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
-        "doubletqc",
-    )
-
-    SPOQC_VOID(
-        ch_sd,
-        "voidqc",
-    )
-
-    SPOQC_CELL(
-        ch_sd,
-        "cellqc",
-    )
-
-    SPOQC_AMBIENT(
-        ch_sd,
-        "ambientqc",
-    )
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // HQCR
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    SPOQC_GENERALQC(withUpstream(ch_base, []), "generalqc", "")
+    SPOQC_DOUBLETQC(withUpstream(ch_base, []), "doubletqc", "")
+    SPOQC_CELLQC(withUpstream(ch_base_noann, []), "cellqc", "")
+    SPOQC_VOIDQC(withUpstream(ch_base_noann, [SPOQC_DOUBLETQC.out.out]), "voidqc", "")   // void needs doublet_score
 
     SPOQC_HQCR_IDENT(
-        ch_sd,
+        withUpstream(ch_base, [SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out]),
         "hqcr_ident",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
+        "",
     )
 
-    SPOQC_HQCR_CELLTYPE(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
-        "hqcr_celltype",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
-    )
+    // ---------------------------------------------------------------------------------------
+    // HQPR (per staining): metrics -> clustering -> refinement  (final HQPR probability map)
+    // ---------------------------------------------------------------------------------------
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // HQPR
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ch_hqpr_met_in = stIn(withUpstreamSt(ch_base_st_noann, [], []))
+    SPOQC_HQPR_METRICES(ch_hqpr_met_in.data, "hqpr_metrices", ch_hqpr_met_in.st)
+    ch_hqpr_met = SPOQC_HQPR_METRICES.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // Combine(by: 0) scopes the cross product to matching meta, so each sample only
-    // ever gets crossed with its own declared stainings.
-    ch_spatialdata_stainings = ch_sd.combine(ch_stainings, by: 0)
+    ch_hqpr_clu_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_met], []))
+    SPOQC_HQPR_CLUSTERING(ch_hqpr_clu_in.data, "hqpr_clustering", ch_hqpr_clu_in.st)
+    ch_hqpr_clu = SPOQC_HQPR_CLUSTERING.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    SPOQC_HQPR_METRICES(
-        ch_spatialdata_stainings,
-        "hqpr_metrices",
-    )
+    ch_hqpr_ref_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_clu], []))
+    SPOQC_HQPR_REFINEMENT(ch_hqpr_ref_in.data, "hqpr_refinement", ch_hqpr_ref_in.st)
+    ch_hqpr_ref = SPOQC_HQPR_REFINEMENT.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // Join every per-staining upstream output onto ch_spatialdata_stainings by the composite
-    // [meta, staining], so their outputs can arrive in a different order than ch_spatialdata_stainings
-    // declares them in.
-    ch_hqpr_clustering_input = ch_spatialdata_stainings
-        .map { meta, spatialdata, staining -> [[meta, staining], meta, spatialdata, staining] }
-        .join(SPOQC_HQPR_METRICES.out.metrices.map { meta, staining, f -> [[meta, staining], f] })
-        .multiMap { _key, meta, spatialdata, staining, f ->
-            sd:       [meta, spatialdata, staining]
-            metrices: [staining, f]
-        }
+    // ---------------------------------------------------------------------------------------
+    // HQTR: metrics, QV, ambient -> AC -> clustering -> refinement  (final HQTR probability map)
+    // ---------------------------------------------------------------------------------------
 
-    SPOQC_HQPR_CLUSTERING(
-        ch_hqpr_clustering_input.sd,
-        "hqpr_clustering",
-        ch_hqpr_clustering_input.metrices,
-    )
-
-    ch_hqpr_refinement_input = ch_spatialdata_stainings
-        .map { meta, spatialdata, staining -> [[meta, staining], meta, spatialdata, staining] }
-        .join(SPOQC_HQPR_CLUSTERING.out.mask.map { meta, staining, f -> [[meta, staining], f] })
-        .multiMap { _key, meta, spatialdata, staining, f ->
-            sd:   [meta, spatialdata, staining]
-            mask: [staining, f]
-        }
-
-    SPOQC_HQPR_REFINEMENT(
-        ch_hqpr_refinement_input.sd,
-        "hqpr_refinement",
-        ch_hqpr_refinement_input.mask,
-    )
-
-    ch_hqpr_bounding_box_input = ch_spatialdata_stainings
-        .map { meta, spatialdata, staining -> [[meta, staining], meta, spatialdata, staining] }
-        .join(SPOQC_HQPR_REFINEMENT.out.mask_smoothed.map { meta, staining, f -> [[meta, staining], f] })
-        .multiMap { _key, meta, spatialdata, staining, f ->
-            sd:            [meta, spatialdata, staining]
-            mask_smoothed: [staining, f]
-        }
-
-    SPOQC_HQPR_BOUNDING_BOX(
-        ch_hqpr_bounding_box_input.sd,
-        "hqpr_bounding_box",
-        ch_hqpr_bounding_box_input.mask_smoothed,
-    )
-
-    // Same meta.id-keyed pairing as ch_sd_annotation, extended with staining, and further
-    // joined (by the same composite [meta, staining] key) with the HQPR mask/mask_smoothed
-    // outputs so sd, annotation, and masks all come from the same joined row.
-    ch_sd
-        .join(ch_annotation_path, by: 0, remainder: true)
-        .map { meta, spatialdata, annotation -> [meta, spatialdata, annotation ?: []] }
-        .combine(ch_stainings, by: 0)
-        .map { meta, spatialdata, annotation, staining -> [[meta, staining], meta, spatialdata, annotation, staining] }
-        .join(
-            SPOQC_HQPR_CLUSTERING.out.mask.map { meta, staining, f -> [[meta, staining], f] }
-                .join(SPOQC_HQPR_REFINEMENT.out.mask_smoothed.map { meta, staining, f -> [[meta, staining], f] })
-        )
-        .multiMap { _key, meta, spatialdata, annotation, staining, mask, mask_smoothed ->
-            sd:         [meta, spatialdata, staining]
-            annotation: [annotation, staining]
-            masks:      [staining, mask, mask_smoothed]
-        }
-        .set { ch_sd_annotation_stainings }
-
-    SPOQC_HQPR_CELLTYPE(
-        ch_sd_annotation_stainings.sd,
-        ch_sd_annotation_stainings.annotation,
-        "hqpr_celltype",
-        SPOQC_GENERAL.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_BUBBLE.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_DOUBLET.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_VOID.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        SPOQC_CELL.out.tmp.combine(ch_stainings, by: 0).map { _meta, f, staining -> [f, staining] },
-        ch_sd_annotation_stainings.masks,
-    )
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // HQTR
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    SPOQC_HQTR_METRICES(
-        ch_sd,
-        "hqtr_metrices",
-    )
-
-    SPOQC_HQTR_AC(
-        ch_sd,
-        "hqtr_ac",
-        SPOQC_AMBIENT.out.tmp.map { _meta, f -> f },
-    )
-
-    SPOQC_HQTR_QV(
-        ch_sd,
-        "hqtr_qv",
-    )
-
+    SPOQC_AMBIENTQC(withUpstream(ch_base_noann, []), "ambientqc", "")
+    SPOQC_HQTR_METRICES(withUpstream(ch_base_noann, []), "hqtr_metrices", "")
+    SPOQC_HQTR_QV(withUpstream(ch_base_noann, []), "hqtr_qv", "")
+    SPOQC_HQTR_AC(withUpstream(ch_base_noann, [SPOQC_AMBIENTQC.out.out]), "hqtr_ac", "")   // ac needs global_moran_I
     SPOQC_HQTR_CLUSTERING(
-        ch_sd,
+        withUpstream(ch_base_noann, [SPOQC_HQTR_METRICES.out.out, SPOQC_HQTR_QV.out.out, SPOQC_HQTR_AC.out.out]),
         "hqtr_clustering",
-        SPOQC_HQTR_METRICES.out.metrices.map { _meta, f -> f },
-        SPOQC_HQTR_QV.out.tmp.map { _meta, f -> f },
-        SPOQC_HQTR_AC.out.tmp.map { _meta, f -> f },
+        "",
     )
+    SPOQC_HQTR_REFINEMENT(withUpstream(ch_base_noann, [SPOQC_HQTR_CLUSTERING.out.out]), "hqtr_refinement", "")
 
-    SPOQC_HQTR_REFINEMENT(
-        ch_sd,
-        "hqtr_refinement",
-        SPOQC_HQTR_CLUSTERING.out.mask.map { _meta, f -> f },
-    )
+    ch_masks = SPOQC_HQCR_IDENT.out.out.map { meta, d -> [meta, 'hqcr', '', d] }
+        .mix(ch_hqpr_ref.map { meta, st, d -> [meta, 'hqpr', st, d] })
+        .mix(SPOQC_HQTR_REFINEMENT.out.out.map { meta, d -> [meta, 'hqtr', '', d] })
 
-    SPOQC_HQTR_BOUNDING_BOX(
-        ch_sd,
-        "hqtr_bounding_box",
-        SPOQC_HQTR_REFINEMENT.out.mask_smoothed.map { _meta, f -> f },
-    )
 
-    SPOQC_HQTR_CELLTYPE(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
-        "hqtr_celltype",
-        SPOQC_GENERAL.out.tmp.map { _meta, f -> f },
-        SPOQC_BUBBLE.out.tmp.map { _meta, f -> f },
-        SPOQC_DOUBLET.out.tmp.map { _meta, f -> f },
-        SPOQC_VOID.out.tmp.map { _meta, f -> f },
-        SPOQC_CELL.out.tmp.map { _meta, f -> f },
-        SPOQC_HQTR_CLUSTERING.out.mask.map { _meta, f -> f },
-        SPOQC_HQTR_REFINEMENT.out.mask_smoothed.map { _meta, f -> f },
-    )
+    ch_report = channel.empty()
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Downstream
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if (!until_masks) {
 
-    // As above: join every input onto ch_spatialdata_stainings by the composite [meta, staining]
-    // key in one shot, so all 8 SPOQC_COMBINE_MASKS args come from the same row and can never be
-    // cross-wired between stainings.
-    ch_combine_masks_input = ch_spatialdata_stainings
-        .map { meta, spatialdata, staining -> [[meta, staining], meta, spatialdata, staining] }
-        .join(SPOQC_HQCR_IDENT.out.mask.combine(ch_stainings, by: 0).map { meta, f, staining -> [[meta, staining], f] })
-        .join(SPOQC_HQPR_CLUSTERING.out.mask.map { meta, staining, f -> [[meta, staining], f] })
-        .join(SPOQC_HQTR_CLUSTERING.out.mask.combine(ch_stainings, by: 0).map { meta, f, staining -> [[meta, staining], f] })
-        .join(SPOQC_HQCR_IDENT.out.mask_smoothed.combine(ch_stainings, by: 0).map { meta, f, staining -> [[meta, staining], f] })
-        .join(SPOQC_HQPR_REFINEMENT.out.mask_smoothed.map { meta, staining, f -> [[meta, staining], f] })
-        .join(SPOQC_HQTR_REFINEMENT.out.mask_smoothed.combine(ch_stainings, by: 0).map { meta, f, staining -> [[meta, staining], f] })
-        .multiMap { _key, meta, spatialdata, staining, hqcr_mask, hqpr_mask, hqtr_mask, hqcr_mask_smoothed, hqpr_mask_smoothed, hqtr_mask_smoothed ->
-            sd:                 [meta, spatialdata, staining]
-            hqcr_mask:          [hqcr_mask, staining]
-            hqpr_mask:          [staining, hqpr_mask]
-            hqtr_mask:          [hqtr_mask, staining]
-            hqcr_mask_smoothed: [hqcr_mask_smoothed, staining]
-            hqpr_mask_smoothed: [staining, hqpr_mask_smoothed]
-            hqtr_mask_smoothed: [hqtr_mask_smoothed, staining]
-        }
+        // -----------------------------------------------------------------------------------
+        // Cell type refinements, bounding boxes, combined masks
+        // -----------------------------------------------------------------------------------
 
-    SPOQC_COMBINE_MASKS(
-        ch_combine_masks_input.sd,
-        "combine_masks",
-        ch_combine_masks_input.hqcr_mask,
-        ch_combine_masks_input.hqpr_mask,
-        ch_combine_masks_input.hqtr_mask,
-        ch_combine_masks_input.hqcr_mask_smoothed,
-        ch_combine_masks_input.hqpr_mask_smoothed,
-        ch_combine_masks_input.hqtr_mask_smoothed,
-    )
+        ch_cell_metrics = [SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out]
 
-    SPOQC_TRANSCRIPT(
-        ch_sd_annotation.sd,
-        ch_sd_annotation.annotation,
-        "transcriptqc",
-    )
+        SPOQC_HQCR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQCR_IDENT.out.out]), "hqcr_celltype", "")
+        SPOQC_HQTR_BOUNDING_BOX(withUpstream(ch_base_noann, [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_bounding_box", "")
+        SPOQC_HQTR_CELLTYPE(withUpstream(ch_base, ch_cell_metrics + [SPOQC_HQTR_REFINEMENT.out.out]), "hqtr_celltype", "")
 
-    SPOQC_CELLCYCLE(
-        ch_sd,
-        "cellcycleqc",
-    )
+        ch_bbox_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref], []))
+        SPOQC_HQPR_BOUNDING_BOX(ch_bbox_in.data, "hqpr_bounding_box", ch_bbox_in.st)
+        ch_hqpr_bbox = SPOQC_HQPR_BOUNDING_BOX.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    SPOQC_MODEL(
-        ch_sd,
-        "modelqc",
-    )
+        ch_ct_in = stIn(withUpstreamSt(ch_base_st, [ch_hqpr_ref], ch_cell_metrics))
+        SPOQC_HQPR_CELLTYPE(ch_ct_in.data, "hqpr_celltype", ch_ct_in.st)
+        ch_hqpr_ct = SPOQC_HQPR_CELLTYPE.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // SPOQC_MARKER(
-    //     ch_sd,
-    //     ch_annotation_path,
-    //     "markerqc"
-    // )
+        ch_cm_in = stIn(withUpstreamSt(ch_base_st_noann, [ch_hqpr_ref],
+            [SPOQC_HQCR_IDENT.out.out, SPOQC_HQTR_REFINEMENT.out.out]))
+        SPOQC_COMBINE_MASKS(ch_cm_in.data, "combine_masks", ch_cm_in.st)
+        ch_cm = SPOQC_COMBINE_MASKS.out.out_st.map { meta, st, d -> [meta, st, d] }
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Analysis
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // -----------------------------------------------------------------------------------
+        // Extra QC
+        // -----------------------------------------------------------------------------------
 
-    // Group each sample's per-staining HQPR files by meta, so a sample's ANALYSIS_* task only
-    // ever receives its own HQPR files.
-    ch_files_hqpr_metrics = SPOQC_HQPR_METRICES.out.metrices
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
+        SPOQC_TRANSCRIPTQC(withUpstream(ch_base, []), "transcriptqc", "")
+        SPOQC_CELLCYCLEQC(withUpstream(ch_base, []), "cellcycleqc", "")
+        SPOQC_MODELQC(withUpstream(ch_base_noann, []), "modelqc", "")
+        SPOQC_WHOLE_SLIDE_QC(withUpstream(ch_base_noann, []), "whole_slide_qc", "")
 
-    ch_files_hqpr_masks = SPOQC_HQPR_CLUSTERING.out.mask
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
+        // -----------------------------------------------------------------------------------
+        // Analysis (all stainings of a sample) and final report
+        // -----------------------------------------------------------------------------------
 
-    ch_files_hqpr_masks_smoothed = SPOQC_HQPR_REFINEMENT.out.mask_smoothed
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
+        ch_all_st = ch_hqpr_met.mix(ch_hqpr_clu, ch_hqpr_ref, ch_hqpr_bbox, ch_hqpr_ct, ch_cm)
+            .map { meta, _st, d -> [meta, d] }
+            .groupTuple(by: 0)
 
-    ch_sd
-        .join(ch_annotation_path, by: 0, remainder: true)
-        .join(SPOQC_GENERAL.out.tmp, by: 0)
-        .join(SPOQC_BUBBLE.out.tmp, by: 0)
-        .join(SPOQC_DOUBLET.out.tmp, by: 0)
-        .join(SPOQC_VOID.out.tmp, by: 0)
-        .join(SPOQC_CELL.out.tmp, by: 0)
-        .join(SPOQC_HQCR_IDENT.out.mask, by: 0)
-        .join(SPOQC_HQCR_IDENT.out.mask_smoothed, by: 0)
-        .join(SPOQC_HQTR_QV.out.tmp, by: 0)
-        .join(SPOQC_HQTR_AC.out.tmp, by: 0)
-        .join(SPOQC_HQTR_METRICES.out.metrices, by: 0)
-        .join(SPOQC_HQTR_REFINEMENT.out.mask_smoothed, by: 0)
-        .join(SPOQC_HQTR_CLUSTERING.out.mask, by: 0)
-        .join(ch_files_hqpr_metrics, by: 0, remainder: true)
-        .join(ch_files_hqpr_masks_smoothed, by: 0, remainder: true)
-        .join(ch_files_hqpr_masks, by: 0, remainder: true)
-        .multiMap { meta, spatialdata, annotation,
-                    general, bubble, doublet, void_qc, cell,
-                    hqcr_mask, hqcr_mask_smoothed,
-                    hqtr_qv, hqtr_ac, hqtr_metrices, hqtr_mask_smoothed, hqtr_mask,
-                    hqpr_metrics, hqpr_masks_smoothed, hqpr_masks ->
-            sd:                  [meta, spatialdata]
-            annotation:          annotation ?: []
-            general_tmp:         general
-            bubble_tmp:          bubble
-            doublet_tmp:         doublet
-            void_tmp:            void_qc
-            cell_tmp:            cell
-            hqcr_mask:           hqcr_mask
-            hqcr_mask_smoothed:  hqcr_mask_smoothed
-            hqtr_qv:             hqtr_qv
-            hqtr_ac:             hqtr_ac
-            hqtr_metrices:       hqtr_metrices
-            hqtr_mask_smoothed:  hqtr_mask_smoothed
-            hqtr_mask:           hqtr_mask
-            hqpr_metrics:        hqpr_metrics ?: []
-            hqpr_masks_smoothed: hqpr_masks_smoothed ?: []
-            hqpr_masks:          hqpr_masks ?: []
-        }
-        .set { ch_analysis_inputs }
+        ch_analysis_ups = [
+            SPOQC_GENERALQC.out.out, SPOQC_DOUBLETQC.out.out, SPOQC_CELLQC.out.out, SPOQC_VOIDQC.out.out,
+            SPOQC_HQCR_IDENT.out.out, SPOQC_HQCR_CELLTYPE.out.out,
+            SPOQC_AMBIENTQC.out.out, SPOQC_HQTR_METRICES.out.out, SPOQC_HQTR_QV.out.out, SPOQC_HQTR_AC.out.out,
+            SPOQC_HQTR_CLUSTERING.out.out, SPOQC_HQTR_REFINEMENT.out.out, SPOQC_HQTR_BOUNDING_BOX.out.out,
+            SPOQC_HQTR_CELLTYPE.out.out,
+        ]
+        ch_analysis_in = withUpstream(ch_base, ch_analysis_ups)
+            .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
+            .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
 
-    SPOQC_ANALYSIS_OVERVIEW(
-        ch_analysis_inputs.sd,
-        ch_analysis_inputs.annotation,
-        "analysis_overview",
-        ch_analysis_inputs.general_tmp,
-        ch_analysis_inputs.bubble_tmp,
-        ch_analysis_inputs.doublet_tmp,
-        ch_analysis_inputs.void_tmp,
-        ch_analysis_inputs.cell_tmp,
-        ch_analysis_inputs.hqcr_mask,
-        ch_analysis_inputs.hqcr_mask_smoothed,
-        ch_analysis_inputs.hqtr_qv,
-        ch_analysis_inputs.hqtr_ac,
-        ch_analysis_inputs.hqtr_metrices,
-        ch_analysis_inputs.hqtr_mask_smoothed,
-        ch_analysis_inputs.hqtr_mask,
-        ch_analysis_inputs.hqpr_metrics,
-        ch_analysis_inputs.hqpr_masks_smoothed,
-        ch_analysis_inputs.hqpr_masks,
-    )
+        SPOQC_ANALYSIS_OVERVIEW(ch_analysis_in, "analysis_overview", "")
+        SPOQC_ANALYSIS_CATEGORY(ch_analysis_in, "analysis_category", "")
+        SPOQC_ANALYSIS_CLUSTER(ch_analysis_in, "analysis_cluster", "")
 
-    SPOQC_ANALYSIS_CATEGORY(
-        ch_analysis_inputs.sd,
-        ch_analysis_inputs.annotation,
-        "analysis_category",
-        ch_analysis_inputs.general_tmp,
-        ch_analysis_inputs.bubble_tmp,
-        ch_analysis_inputs.doublet_tmp,
-        ch_analysis_inputs.void_tmp,
-        ch_analysis_inputs.cell_tmp,
-        ch_analysis_inputs.hqcr_mask,
-        ch_analysis_inputs.hqcr_mask_smoothed,
-        ch_analysis_inputs.hqtr_qv,
-        ch_analysis_inputs.hqtr_ac,
-        ch_analysis_inputs.hqtr_metrices,
-        ch_analysis_inputs.hqtr_mask_smoothed,
-        ch_analysis_inputs.hqtr_mask,
-        ch_analysis_inputs.hqpr_metrics,
-        ch_analysis_inputs.hqpr_masks_smoothed,
-        ch_analysis_inputs.hqpr_masks,
-    )
+        ch_report_in = withUpstream(ch_base, ch_analysis_ups + [
+                SPOQC_TRANSCRIPTQC.out.out, SPOQC_CELLCYCLEQC.out.out, SPOQC_MODELQC.out.out, SPOQC_WHOLE_SLIDE_QC.out.out,
+                SPOQC_ANALYSIS_OVERVIEW.out.out, SPOQC_ANALYSIS_CATEGORY.out.out, SPOQC_ANALYSIS_CLUSTER.out.out,
+            ])
+            .join(ch_all_st, by: 0, remainder: true)     // samples without stainings have no HQPR outputs
+            .map { meta, sd, ann, dirs, st_dirs -> [meta, sd, ann, dirs + (st_dirs ?: [])] }
 
-    SPOQC_ANALYSIS_CLUSTER(
-        ch_analysis_inputs.sd,
-        ch_analysis_inputs.annotation,
-        "analysis_cluster",
-        ch_analysis_inputs.general_tmp,
-        ch_analysis_inputs.bubble_tmp,
-        ch_analysis_inputs.doublet_tmp,
-        ch_analysis_inputs.void_tmp,
-        ch_analysis_inputs.cell_tmp,
-        ch_analysis_inputs.hqcr_mask,
-        ch_analysis_inputs.hqcr_mask_smoothed,
-        ch_analysis_inputs.hqtr_qv,
-        ch_analysis_inputs.hqtr_ac,
-        ch_analysis_inputs.hqtr_metrices,
-        ch_analysis_inputs.hqtr_mask_smoothed,
-        ch_analysis_inputs.hqtr_mask,
-        ch_analysis_inputs.hqpr_metrics,
-        ch_analysis_inputs.hqpr_masks_smoothed,
-        ch_analysis_inputs.hqpr_masks,
-    )
+        SPOQC_FINAL_REPORT(ch_report_in, "final_report", "")
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Final Report
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // Group the per-staining report fragments by meta, so a
-    // sample's final report only ever bundles its own report fragments.
-    ch_report_hqpr_metrices = SPOQC_HQPR_METRICES.out.report
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
-    ch_report_hqpr_clustering = SPOQC_HQPR_CLUSTERING.out.report
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
-    ch_report_hqpr_refinement = SPOQC_HQPR_REFINEMENT.out.report
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
-    ch_report_hqpr_bounding_box = SPOQC_HQPR_BOUNDING_BOX.out.report
-        .map { meta, _staining, p -> [meta, p] }
-        .groupTuple(by: 0)
-    ch_report_combine_masks = SPOQC_COMBINE_MASKS.out.report
-        .groupTuple(by: 0)
-
-    ch_sd
-        .join(SPOQC_GENERAL.out.report, by: 0)
-        .join(SPOQC_DOUBLET.out.report, by: 0)
-        .join(SPOQC_VOID.out.report, by: 0)
-        .join(SPOQC_CELL.out.report, by: 0)
-        .join(SPOQC_HQCR_IDENT.out.report, by: 0)
-        .join(SPOQC_HQCR_CELLTYPE.out.report, by: 0)
-        .join(ch_report_hqpr_metrices, by: 0, remainder: true)
-        .join(ch_report_hqpr_clustering, by: 0, remainder: true)
-        .join(ch_report_hqpr_refinement, by: 0, remainder: true)
-        .join(ch_report_hqpr_bounding_box, by: 0, remainder: true)
-        .join(SPOQC_HQPR_CELLTYPE.out.report, by: 0)
-        .join(SPOQC_HQTR_METRICES.out.report, by: 0)
-        .join(SPOQC_HQTR_AC.out.report, by: 0)
-        .join(SPOQC_HQTR_QV.out.report, by: 0)
-        .join(SPOQC_HQTR_CLUSTERING.out.report, by: 0)
-        .join(SPOQC_HQTR_REFINEMENT.out.report, by: 0)
-        .join(SPOQC_HQTR_BOUNDING_BOX.out.report, by: 0)
-        .join(SPOQC_HQTR_CELLTYPE.out.report, by: 0)
-        .join(ch_report_combine_masks, by: 0, remainder: true)
-        .join(SPOQC_TRANSCRIPT.out.report, by: 0)
-        .join(SPOQC_CELLCYCLE.out.report, by: 0)
-        .join(SPOQC_MODEL.out.report, by: 0)
-        .join(SPOQC_ANALYSIS_OVERVIEW.out.report, by: 0)
-        .join(SPOQC_ANALYSIS_CATEGORY.out.report, by: 0)
-        .join(SPOQC_ANALYSIS_CLUSTER.out.report, by: 0)
-        .multiMap {
-            meta, spatialdata,
-            report_general, report_doublet, report_void, report_cell,
-            report_hqcr_ident, report_hqcr_celltype,
-            report_hqpr_metrices, report_hqpr_clustering, report_hqpr_refinement, report_hqpr_bounding_box,
-            report_hqpr_celltype,
-            report_hqtr_metrices, report_hqtr_ac, report_hqtr_qv, report_hqtr_clustering,
-            report_hqtr_refinement, report_hqtr_bounding_box, report_hqtr_celltype,
-            report_combine_masks, report_transcript, report_cellcycle, report_model,
-            report_analysis_overview, report_analysis_category, report_analysis_cluster ->
-            sd:                       [meta, spatialdata]
-            report_general:           report_general
-            report_doublet:           report_doublet
-            report_void:              report_void
-            report_cell:              report_cell
-            report_hqcr_ident:        report_hqcr_ident
-            report_hqcr_celltype:     report_hqcr_celltype
-            report_hqpr_metrices:     report_hqpr_metrices ?: []
-            report_hqpr_clustering:   report_hqpr_clustering ?: []
-            report_hqpr_refinement:   report_hqpr_refinement ?: []
-            report_hqpr_bounding_box: report_hqpr_bounding_box ?: []
-            report_hqpr_celltype:     report_hqpr_celltype
-            report_hqtr_metrices:     report_hqtr_metrices
-            report_hqtr_ac:           report_hqtr_ac
-            report_hqtr_qv:           report_hqtr_qv
-            report_hqtr_clustering:   report_hqtr_clustering
-            report_hqtr_refinement:   report_hqtr_refinement
-            report_hqtr_bounding_box: report_hqtr_bounding_box
-            report_hqtr_celltype:     report_hqtr_celltype
-            report_combine_masks:     report_combine_masks ?: []
-            report_transcript:        report_transcript
-            report_cellcycle:         report_cellcycle
-            report_model:             report_model
-            report_analysis_overview: report_analysis_overview
-            report_analysis_category: report_analysis_category
-            report_analysis_cluster:  report_analysis_cluster
-        }
-        .set { ch_finalreport_inputs }
-
-    SPOQC_FINALREPORT(
-        ch_finalreport_inputs.sd,
-        "final_report",
-        ch_finalreport_inputs.report_general,
-        ch_finalreport_inputs.report_doublet,
-        ch_finalreport_inputs.report_void,
-        ch_finalreport_inputs.report_cell,
-        ch_finalreport_inputs.report_hqcr_ident,
-        ch_finalreport_inputs.report_hqcr_celltype,
-        ch_finalreport_inputs.report_hqpr_metrices,
-        ch_finalreport_inputs.report_hqpr_clustering,
-        ch_finalreport_inputs.report_hqpr_refinement,
-        ch_finalreport_inputs.report_hqpr_bounding_box,
-        ch_finalreport_inputs.report_hqpr_celltype,
-        ch_finalreport_inputs.report_hqtr_metrices,
-        ch_finalreport_inputs.report_hqtr_ac,
-        ch_finalreport_inputs.report_hqtr_qv,
-        ch_finalreport_inputs.report_hqtr_clustering,
-        ch_finalreport_inputs.report_hqtr_refinement,
-        ch_finalreport_inputs.report_hqtr_bounding_box,
-        ch_finalreport_inputs.report_hqtr_celltype,
-        ch_finalreport_inputs.report_combine_masks,
-        ch_finalreport_inputs.report_transcript,
-        ch_finalreport_inputs.report_cellcycle,
-        ch_finalreport_inputs.report_model,
-        ch_finalreport_inputs.report_analysis_overview,
-        ch_finalreport_inputs.report_analysis_category,
-        ch_finalreport_inputs.report_analysis_cluster,
-    )
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Output
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ch_report = SPOQC_FINAL_REPORT.out.out
+    }
 
     emit:
-
-    report       = SPOQC_FINALREPORT.out.report
+    masks  = ch_masks       // channel: [ val(meta), val(modality), val(staining), path(out) ] - final probability maps
+    report = ch_report      // channel: [ val(meta), path(out) ] - empty with --spoqc_until masks
 }
