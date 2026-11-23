@@ -1,0 +1,7 @@
+# Merge order for integration/spoqc-fast. Each row describes one change.
+# Branch                         | Output equivalence | Upstream status | Note
+fix/staining-index-integer        # pending | not sent | Accept a numeric staining index
+feat/reuse-spatialdata            # pending | fork-only | Use an existing SpatialData bundle for SpoQC
+feat/spoqc-parallel-runner        # pending | not sent | SpoQC 0.1 runner, parallel graph and resource baseline
+feat/spoqc-mask-stop              # pending | not sent | Depends on feat/spoqc-parallel-runner
+feat/spoqc-pythonpath             # pending | fork-only | Depends on feat/spoqc-parallel-runner
