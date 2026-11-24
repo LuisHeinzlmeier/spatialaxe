@@ -409,6 +409,10 @@
             "description": "",
             "default": "",
             "properties": {
+                "reuse_spatialdata": {
+                    "type": "string",
+                    "description": "CSV with sample and spatialdata columns for reusing existing SpatialData bundles in SpoQC."
+                },
                 "spoqc": {
                     "type": "boolean"
                 }
