@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 import zarr
 
 BINS = 1001
+VIEWER_CHUNK = 512
 BATCH_PIXELS = 1_048_576
 BLOCK_PIXELS = 16_777_216
 MAP_PREFIX = "mask_smoothed_raw_output_"
@@ -204,7 +205,7 @@ def write_qc_spatialdata(path, maps, obs, input_obs, obs_backup):
             mask_arrays.append(da.from_zarr(mask))
             labels[f"spoqc_mask_{name}"] = Labels2DModel.parse(
                 mask_arrays[-1], dims=("y", "x"), transformations={"global": transform},
-                scale_factors=[2, 2, 2, 2], chunks=(4096, 4096), method=Methods.DASK_IMAGE_NEAREST,
+                scale_factors=[2, 2, 2, 2], chunks=(VIEWER_CHUNK, VIEWER_CHUNK), method=Methods.DASK_IMAGE_NEAREST,
             )
 
         if len(mask_arrays) > 255:
@@ -212,13 +213,13 @@ def write_qc_spatialdata(path, maps, obs, input_obs, obs_backup):
         labels["spoqc_mask"] = Labels2DModel.parse(
             da.stack(mask_arrays).sum(axis=0, dtype=np.uint8), dims=("y", "x"),
             transformations={"global": transform}, scale_factors=[2, 2, 2, 2],
-            chunks=(4096, 4096), method=Methods.DASK_IMAGE_NEAREST,
+            chunks=(VIEWER_CHUNK, VIEWER_CHUNK), method=Methods.DASK_IMAGE_NEAREST,
         )
         pixel_data = da.stack(channels)
         image = Image2DModel.parse(
             pixel_data, dims=("c", "y", "x"), c_coords=names,
             transformations={"global": transform}, scale_factors=[2, 2, 2, 2],
-            chunks=(1, 4096, 4096), method=Methods.XARRAY_COARSEN,
+            chunks=(1, VIEWER_CHUNK, VIEWER_CHUNK), method=Methods.XARRAY_COARSEN,
         )
         # Keep the image pyramid metadata, but select actual encoded pixels.
         # Averaging the encoded bytes would mix missing value 255 into valid pixels.
@@ -228,7 +229,7 @@ def write_qc_spatialdata(path, maps, obs, input_obs, obs_backup):
             y, x = plane.sizes["y"], plane.sizes["x"]
             offset = factor // 2
             data = pixel_data[:, offset:y * factor:factor, offset:x * factor:factor]
-            data = data.rechunk((1, 4096, 4096))
+            data = data.rechunk((1, VIEWER_CHUNK, VIEWER_CHUNK))
             level.dataset = level.to_dataset().assign(image=plane.copy(data=data))
         if obs_backup is not None:
             parent = obs_backup.parent
