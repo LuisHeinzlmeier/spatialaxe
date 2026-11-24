@@ -26,7 +26,11 @@ process SPOQC_STEP {
     def args           = task.ext.args ?: ''
     def annotation_arg = annotation ? "-a ${annotation}" : ''
     def staining_arg   = (staining != null && staining != '') ? "--staining ${staining}" : ''  // 0 is a valid channel
+    // Run a development checkout of spoQC inside the container (e.g. a fork with performance fixes):
+    // --spoqc_pythonpath is put in front of the container's site-packages.
+    def pythonpath     = params.spoqc_pythonpath ? "export PYTHONPATH=${params.spoqc_pythonpath}\${PYTHONPATH:+:\$PYTHONPATH}" : ''
     """
+    ${pythonpath}
     export MPLCONFIGDIR=\$PWD/tmp NUMBA_CACHE_DIR=\$PWD/tmp
     mkdir -p tmp out/spoQC_tmp out/report
 
