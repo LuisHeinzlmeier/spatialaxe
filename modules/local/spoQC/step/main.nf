@@ -24,6 +24,7 @@ process SPOQC_STEP {
         error("SPOQC_STEP does not support Conda. Please use Docker / Singularity / Podman instead.")
     }
     def args           = task.ext.args ?: ''
+    def plots_arg      = params.spoqc_plots ? '' : '--no-plots'
     def annotation_arg = annotation ? "-a ${annotation}" : ''
     def staining_arg   = (staining != null && staining != '') ? "--staining ${staining}" : ''  // 0 is a valid channel
     """
@@ -51,6 +52,7 @@ process SPOQC_STEP {
         --dataset ${meta.id} \\
         ${annotation_arg} \\
         ${staining_arg} \\
+        ${plots_arg} \\
         ${args}
 
     # spoQC writes its figures to <output_dir>/report/. Fail loudly if the annotation is missing,

@@ -420,6 +420,19 @@
                 }
             }
         },
+        "spoqc_output_options": {
+            "title": "SpoQC output options",
+            "type": "object",
+            "description": "Options for SpoQC figures and HTML reports.",
+            "properties": {
+                "spoqc_plots": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Generate SpoQC figures and HTML reports.",
+                    "fa_icon": "fas fa-chart-bar"
+                }
+            }
+        },
         "institutional_config_options": {
             "title": "Institutional config options",
             "type": "object",
@@ -598,6 +611,9 @@
         },
         {
             "$ref": "#/$defs/qc_options"
+        },
+        {
+            "$ref": "#/$defs/spoqc_output_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"
