@@ -411,14 +411,8 @@
                 "spoqc_cell_anndata": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Write per-sample QC SpatialData and AnnData Zarr stores when SpoQC is enabled.",
+                    "description": "Publish a complete per-sample SpatialData copy with SpoQC maps, masks and observation columns.",
                     "fa_icon": "fas fa-table"
-                },
-                "spoqc_cell_h5ad": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Also save the per-cell QC AnnData as H5AD.",
-                    "fa_icon": "fas fa-file"
                 }
             }
         },

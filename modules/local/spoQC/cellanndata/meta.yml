@@ -1,5 +1,5 @@
 name: cell_qc_anndata
-description: Export per-cell SpoQC metrics and pixel summaries as AnnData.
+description: Publish the complete SpatialData bundle with SpoQC image, label and table annotations.
 keywords:
   - spatialomics
   - quality control
@@ -22,9 +22,6 @@ input:
   - stainings:
       type: list
       description: Expected staining indices for the HQPR masks.
-  - write_h5ad:
-      type: boolean
-      description: Also write the AnnData in HDF5 format.
 output:
   - spatialdata:
       - meta:
@@ -32,18 +29,4 @@ output:
           description: Sample metadata.
       - "*_qc.zarr":
           type: directory
-          description: SpatialData with QC maps, masks, cell circles and the per-cell table.
-  - zarr:
-      - meta:
-          type: map
-          description: Sample metadata.
-      - "*_qc.anndata.zarr":
-          type: directory
-          description: AnnData Zarr store with per-cell QC metrics.
-  - h5ad:
-      - meta:
-          type: map
-          description: Sample metadata.
-      - "*_qc.h5ad":
-          type: file
-          description: Optional copy of the same AnnData in HDF5 format.
+          description: Complete annotated copy of the input SpatialData bundle.

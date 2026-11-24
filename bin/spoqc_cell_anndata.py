@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Export per-cell SpoQC data without editing the input SpatialData."""
+"""Add SpoQC rasters and observation columns to a SpatialData store."""
 
 import argparse
 import json
 import re
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -128,15 +129,15 @@ def summarize_map(labels, ids, path, column):
     return mean.astype(np.float32), median.astype(np.float32), count
 
 
-def write_qc_spatialdata(path, input_path, maps, table):
+def write_qc_spatialdata(path, maps, obs, input_obs, obs_backup):
     import dask
     import dask.array as da
     import spatialdata as sd
     from multiscale_spatial_image.to_multiscale import Methods
-    from spatialdata.models import Image2DModel, Labels2DModel, TableModel
+    from spatialdata.models import Image2DModel, Labels2DModel
     from spatialdata.transformations import Identity, Scale
 
-    source = sd.read_zarr(str(input_path), selection=("images", "shapes"))
+    source = sd.read_zarr(str(path), selection=("images", "labels"))
     morphology = source.images["morphology_focus"]
     full = morphology["scale0"].image if hasattr(morphology, "keys") else morphology
     height, width = full.sizes["y"], full.sizes["x"]
@@ -158,19 +159,17 @@ def write_qc_spatialdata(path, input_path, maps, table):
     if len(names) != len(set(names)):
         raise ValueError("Staining names must be unique after normalizing")
 
-    shapes = source.shapes["cell_circles"]
-    del source
-    if not shapes.index.is_unique or not table.obs["cell_id"].isin(shapes.index).all():
-        raise ValueError("Table cell IDs must match unique cell_circles IDs")
-    table.obs["spoqc_region"] = pd.Categorical(["cell_circles"] * table.n_obs)
-    table = TableModel.parse(table, region="cell_circles", region_key="spoqc_region", instance_key="cell_id")
+    additions = {"spoqc_maps", "spoqc_mask", *(f"spoqc_mask_{name}" for name in names)}
+    existing = {element_path.split("/")[-1] for element_path in source.elements_paths_on_disk()}
+    conflicts = additions & existing
+    if conflicts:
+        raise ValueError(f"{path} already contains QC elements: {', '.join(sorted(conflicts))}")
 
     grids = {key: map_grid(maps[key], height, width) for key in ordered}
     if len(set(grids.values())) != 1:
         raise ValueError("SpoQC channels occupy different grids and cannot be stacked without resampling")
     (rows, cols), scale = grids[ordered[0]]
     transform = Identity() if scale == 1 else Scale([scale, scale], axes=("y", "x"))
-    missing = {}
     with tempfile.TemporaryDirectory(prefix="spoqc-rasters-", dir=".") as scratch:
         store = zarr.open_group(scratch, mode="w")
         channels = []
@@ -197,8 +196,6 @@ def write_qc_spatialdata(path, input_path, maps, table):
                             continue
                         encoded = flat.astype(np.uint8)
                     raster[rows - end:rows - start, :] = encoded.reshape(end - start, cols)[::-1]
-            missing[name] = {"pixels": rows * cols, "beliefs_missing": missing_probability,
-                             "mask_missing": missing_mask}
             print(f"{name}: {missing_probability} missing beliefs, {missing_mask} missing mask pixels "
                   f"out of {rows * cols}", flush=True)
             if missing_mask:
@@ -217,8 +214,6 @@ def write_qc_spatialdata(path, input_path, maps, table):
             transformations={"global": transform}, scale_factors=[2, 2, 2, 2],
             chunks=(4096, 4096), method=Methods.DASK_IMAGE_NEAREST,
         )
-        table.uns["spoqc_mask_max"] = len(mask_arrays)
-        table.uns["spoqc_missing_pixels"] = missing
         pixel_data = da.stack(channels)
         image = Image2DModel.parse(
             pixel_data, dims=("c", "y", "x"), c_coords=names,
@@ -235,11 +230,35 @@ def write_qc_spatialdata(path, input_path, maps, table):
             data = pixel_data[:, offset:y * factor:factor, offset:x * factor:factor]
             data = data.rechunk((1, 4096, 4096))
             level.dataset = level.to_dataset().assign(image=plane.copy(data=data))
-        result = sd.SpatialData(images={"spoqc_maps": image}, labels=labels,
-                                shapes={"cell_circles": shapes}, tables={"table": table})
+        if obs_backup is not None:
+            parent = obs_backup.parent
+            parent.mkdir(parents=True, exist_ok=True)
+            if obs_backup.exists():
+                raise FileExistsError(f"Observation backup already exists: {obs_backup}")
+            # Complete the backup before the first write to the existing store.
+            with tempfile.TemporaryDirectory(prefix="obs-backup-", dir=parent) as staging:
+                copied = Path(staging) / "obs"
+                shutil.copytree(path / "tables/table/obs", copied)
+                copied.rename(obs_backup)
+            print(f"Backed up observations to {obs_backup}", flush=True)
+
+        source.images["spoqc_maps"] = image
+        for name, label in labels.items():
+            source.labels[name] = label
         with dask.config.set(scheduler="threads", num_workers=2):
-            result.write(path)
-        print(sd.read_zarr(path))
+            source.write_element(["spoqc_maps", *labels], overwrite=False)
+
+    group = zarr.open_group(path, mode="r+", use_consolidated=False)
+    table = group["tables/table"]
+    original = ad.io.read_elem(table["obs"])
+    pd.testing.assert_frame_equal(original, input_obs)
+    ad.io.write_elem(table, "obs", obs)
+    if source.has_consolidated_metadata():
+        source.write_consolidated_metadata()
+    saved = ad.io.read_elem(zarr.open_group(path, mode="r")["tables/table/obs"])
+    pd.testing.assert_frame_equal(saved, obs)
+    print(f"Updated {path}: {len(obs)} cells, {len(obs.columns)} observation columns, "
+          f"combined-mask maximum {len(mask_arrays)}", flush=True)
 
 
 def collect_outputs(directories):
@@ -299,6 +318,7 @@ def export(args):
     missing = expected - maps.keys()
     if missing:
         raise ValueError("Missing smoothed SpoQC maps: " + ", ".join(sorted(missing)))
+    input_obs = obs.copy(deep=True)
     attach_metrics(obs, metrics)
     for name, path in sorted(maps.items()):
         mean, median, count = summarize_map(labels, ids, path, f"{name}_beliefs_smoothed")
@@ -306,18 +326,12 @@ def export(args):
         obs[f"spoqc_{name}_median"] = median
         obs["spoqc_n_pixels"] = count
 
-    # Keep the spatial coordinates and gene metadata. The expression matrix and layers
-    # can be large, and are not needed to display per-cell QC scores in the browser.
-    var = ad.io.read_elem(table["var"])
-    obsm = ad.io.read_elem(table["obsm"]) if "obsm" in table else {}
-    result = ad.AnnData(obs=obs, var=var, obsm=obsm)
-    with ad.settings.override(zarr_write_format=2):
-        result.write_zarr(args.output)
-    if args.spatialdata_output:
-        write_qc_spatialdata(args.spatialdata_output, args.spatialdata, maps, result.copy())
-    if args.h5ad:
-        result.write_h5ad(args.h5ad)
-    print(f"Exported {result.n_obs} cells and {result.obs.shape[1]} observation columns to {args.output}")
+    destination = args.spatialdata.resolve() if args.in_place else args.output.resolve()
+    if not args.in_place:
+        # Copy the complete bundle, including the expression matrix and any source
+        # elements this exporter does not need to read.
+        shutil.copytree(args.spatialdata.resolve(), destination)
+    write_qc_spatialdata(destination, maps, obs, input_obs, args.obs_backup)
 
 
 def main():
@@ -325,10 +339,17 @@ def main():
     parser.add_argument("--spatialdata", type=Path, required=True)
     parser.add_argument("--spoqc-output", type=Path, nargs="+", required=True)
     parser.add_argument("--staining", action="append", default=[])
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--spatialdata-output", type=Path)
-    parser.add_argument("--h5ad", type=Path)
-    export(parser.parse_args())
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--output", type=Path, help="Write a full annotated copy")
+    target.add_argument("--in-place", action="store_true", help="Update the input store")
+    parser.add_argument("--obs-backup", type=Path, help="Backup directory for the original observations")
+    args = parser.parse_args()
+    if args.in_place != (args.obs_backup is not None):
+        parser.error("--obs-backup is required for --in-place and only applies to that mode")
+    if args.in_place and args.obs_backup.resolve().is_relative_to(args.spatialdata.resolve()):
+        parser.error("--obs-backup must be outside the input SpatialData store")
+    export(args)
+
 
 
 if __name__ == "__main__":

@@ -162,7 +162,7 @@ workflow SPOQC {
         ch_export_input = ch_sd.join(ch_export_stainings, by: 0, remainder: true)
             .join(ch_export_masks, by: 0, remainder: true)
             .map { meta, spatialdata, stainings, masks -> [meta, spatialdata, masks ?: [], stainings ?: []] }
-        CELL_QC_ANNDATA(ch_export_input, params.spoqc_cell_h5ad)
+        CELL_QC_ANNDATA(ch_export_input)
     }
 
     ch_masks = SPOQC_HQCR_IDENT.out.out.map { meta, d -> [meta, 'hqcr', '', d] }

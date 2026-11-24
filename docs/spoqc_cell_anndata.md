@@ -1,24 +1,18 @@
-# SpoQC SpatialData output
+# SpoQC output in SpatialData
 
-When SpoQC is enabled, the pipeline writes `results/<sample>/qc/<sample>_qc.zarr` for each sample. The export works in masks and report modes. It also writes the standalone AnnData Zarr v2 store `<sample>_qc.anndata.zarr`. To also write `<sample>_qc.h5ad`, set `spoqc_cell_h5ad: true` in the parameters file. To disable the export, set `spoqc_cell_anndata: false`.
+When SpoQC is enabled, spatialaxe publishes the complete annotated SpatialData at `results/<sample>/qc/<sample>_qc.zarr`. This works in masks and report modes. Set `spoqc_cell_anndata: false` in the parameters file to disable this export.
 
-The AnnData keeps the input cell IDs, observation order, original `obs`, gene metadata (`var`) and coordinates (`obsm`). It leaves out the expression matrix and layers to keep the browser-facing file small. The input SpatialData is read only.
+The pipeline copies the input before adding QC. This lets Nextflow retry or resume without changing an upstream task's inputs or a reused SpatialData store. The copy retains the original images, labels, points, shapes and sole `table`, including its expression matrix, layers, gene metadata, spatial coordinates and table annotation. The output requires space for the original bundle plus the new rasters. Publishing with copy mode also retains a complete copy in the Nextflow work directory.
 
-The export joins SpoQC's per-cell metric tables by observation ID. This includes GeneralQC, CellQC, DoubletQC, VoidQC and the HQCR traffic light when available. When a metric name already exists in the input, the new column gets a `spoqc_<step>_` prefix. List-valued metric columns are encoded as JSON strings. AmbientQC's gene-level table and the transcript-level doublet table remain in the regular SpoQC outputs. SpoQC intermediates held only in memory, such as the original HQCR per-cell prior and report-only cell-cycle scores, are unavailable to this export. The HQCR mean and median below summarize the published refined map.
+For an existing store that is safe to update, the same exporter accepts `--in-place --obs-backup <path-outside-store>`. It copies the original `tables/table/obs` group before making changes, adds each raster with `write_element` without overwriting an existing element, and replaces only `table.obs`. Run it when the store is free of competing writers and pipeline readers.
 
-- `spoqc_hqpr_<staining>_mean` and `spoqc_hqpr_<staining>_median` for every staining.
-- `spoqc_hqtr_mean`, `spoqc_hqtr_median`, `spoqc_hqcr_mean` and `spoqc_hqcr_median`.
-- `spoqc_n_pixels` counts the full-resolution pixels of each cell's label. A cell with zero pixels has missing means and medians. Medians use probabilities rounded to 0.001, with the lower middle value for an even pixel count.
+## QC elements
 
-The map rows are flipped vertically to line up with the labels. The exporter reads the maps and label image in blocks and keeps histogram storage proportional to the number of cells.
+- `images/spoqc_maps` is a five-level uint8 pyramid with channels ordered by HQPR staining index, then HQTR and HQCR. HQPR channel names come from `morphology_focus`, in lowercase with punctuation replaced by underscores. Smoothed beliefs are clipped to [0, 1], multiplied by 254 and rounded. Value 255 marks a missing belief.
+- `labels/spoqc_mask_hqpr_<staining>`, `labels/spoqc_mask_hqtr` and `labels/spoqc_mask_hqcr` preserve the smoothed binary labels. A value of 1 means high quality and 0 means low quality.
+- `labels/spoqc_mask` sums the binary masks. Its maximum is the number of HQPR stainings plus two.
+- `tables/table/obs` keeps the original IDs, order and columns. It adds `spoqc_hqpr_<staining>_mean` and `_median` for each staining, the matching `spoqc_hqtr_*` and `spoqc_hqcr_*` summaries, and `spoqc_n_pixels`. Cells with zero pixels have missing summaries. Medians use the lower middle of the probabilities rounded to 0.001.
 
-## SpatialData layout
+The rasters are unflipped and registered to `global`. The export streams the source pixels in blocks and writes spatially chunked pyramids. Counts of missing beliefs and mask pixels are logged for each channel. Missing binary labels stop the export. Channels on a common coarser grid get a scale transform. Mixed native grids require a separate resampling rule.
 
-- `images/spoqc_maps` is a five-level uint8 pyramid with channels ordered by HQPR staining index, then HQTR and HQCR. HQPR channels use the staining names from `morphology_focus`, lowercased with punctuation replaced by underscores. Pixel values are the smoothed beliefs clipped to [0, 1], multiplied by 254 and rounded. Value 255 marks a missing belief.
-- `labels/spoqc_mask_hqpr_<staining>`, `labels/spoqc_mask_hqtr` and `labels/spoqc_mask_hqcr` preserve SpoQC's smoothed binary labels. A value of 1 means high quality and 0 means low quality.
-- `labels/spoqc_mask` sums the binary masks. Its range is 0 to the number of HQPR stainings plus two.
-- `shapes/cell_circles` is copied from the input. `tables/table` is the per-cell table linked to it by `cell_id`. The table records the combined-mask maximum and missing pixel counts in `uns`.
-
-The rasters are unflipped into the input image orientation and registered to `global`. Raster pyramid levels use nearest-neighbor sampling so mask values and the missing-belief marker remain intact. A missing binary mask pixel is reported and stops the export because it cannot be represented by either binary value.
-
-A common coarser grid uses a scale transform. The export rejects samples whose masks have different grids because their combined pixel sum would require a resampling rule.
+The exporter joins saved GeneralQC, CellQC, DoubletQC, and VoidQC tables and the HQCR traffic light by observation ID. A metric that shares a name with an original column gets a `spoqc_<step>_` prefix. List-valued metrics are encoded as JSON strings. AmbientQC's saved table is per gene. HQCR's original per-cell prior and report-only intermediates are held in memory by SpoQC. The HQCR mean and median summarize the published refined map.

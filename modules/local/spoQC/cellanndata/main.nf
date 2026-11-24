@@ -8,12 +8,9 @@ process CELL_QC_ANNDATA {
 
     input:
     tuple val(meta), path(spatialdata, stageAs: "input/*"), path(masks, stageAs: "mask??/*"), val(stainings)
-    val(write_h5ad)
 
     output:
     tuple val(meta), path("*_qc.zarr"), emit: spatialdata
-    tuple val(meta), path("*_qc.anndata.zarr"), emit: zarr
-    tuple val(meta), path("*_qc.h5ad"), emit: h5ad, optional: true
     tuple val("${task.process}"), val('anndata'), eval("python3 -c 'import anndata; print(anndata.__version__)'"), topic: versions, emit: versions_anndata
 
     when:
@@ -22,7 +19,6 @@ process CELL_QC_ANNDATA {
     script:
     def prefix = task.ext.prefix ?: meta.id
     def staining_args = stainings.collect { "--staining ${it as Integer}" }.join(' ')
-    def h5ad_arg = write_h5ad ? "--h5ad '${prefix}_qc.h5ad'" : ''
     """
     export NUMBA_CACHE_DIR="\$PWD/numba-cache"
     mkdir -p "\$NUMBA_CACHE_DIR"
@@ -30,16 +26,12 @@ process CELL_QC_ANNDATA {
         --spatialdata "${spatialdata}" \\
         --spoqc-output mask??/* \\
         ${staining_args} \\
-        --spatialdata-output "${prefix}_qc.zarr" \\
-        --output "${prefix}_qc.anndata.zarr" \\
-        ${h5ad_arg}
+        --output "${prefix}_qc.zarr"
     """
 
     stub:
     def prefix = task.ext.prefix ?: meta.id
-    def h5ad_stub = write_h5ad ? "touch '${prefix}_qc.h5ad'" : ''
     """
-    mkdir -p "${prefix}_qc.zarr" "${prefix}_qc.anndata.zarr"
-    ${h5ad_stub}
+    mkdir -p "${prefix}_qc.zarr"
     """
 }
