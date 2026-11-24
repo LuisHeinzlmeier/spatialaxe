@@ -6,4 +6,4 @@ feat/spoqc-parallel-runner        # pending | not sent | SpoQC 0.1 runner, paral
 feat/spoqc-mask-stop              # pending | not sent | Depends on feat/spoqc-parallel-runner
 feat/spoqc-pythonpath             # pending | fork-only | Depends on feat/spoqc-parallel-runner
 feat/spoqc-plots                  # SpoQC data unchanged; pipeline flag smoke-tested | not sent | Depends on feat/spoqc-parallel-runner. Fork defaults plots off. Upstream should default plots on.
-feat/per-cell-qc-anndata         # exact Skin_A2 table and rasters | not sent | Depends on feat/spoqc-parallel-runner. SpatialData export 3m15s, 3.04 GiB Slurm MaxRSS, 645 MiB. Binary masks and their combined sum verified pixel by pixel.
+feat/per-cell-qc-anndata         # exact Skin_A2 table values and QC rasters | not sent | Depends on feat/spoqc-parallel-runner. Full SpatialData copy kept the original X and table metadata, 3m12s and 1.5 GiB. In-place updates are explicit and require an obs backup.
