@@ -29,7 +29,7 @@
                 "errorMessage": "You can provide an annotation. If you do not then please leave the field empty."
             },
             "stainings": {
-                "type": "string",
+                "type": ["string", "integer"],
                 "pattern": "^\\S+$",
                 "errorMessage": "The indices of the image channels of the individual stainings you want to analyse."
             }
