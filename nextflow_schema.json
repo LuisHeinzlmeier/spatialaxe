@@ -403,6 +403,19 @@
                 }
             }
         },
+        "spoqc_cell_output_options": {
+            "title": "Per-cell SpoQC output options",
+            "type": "object",
+            "description": "Export per-cell metrics and smoothed-map summaries in AnnData format.",
+            "properties": {
+                "spoqc_cell_anndata": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Publish a complete per-sample SpatialData copy with SpoQC maps, masks and observation columns.",
+                    "fa_icon": "fas fa-table"
+                }
+            }
+        },
         "qc_options": {
             "title": "QC options",
             "type": "object",
@@ -624,6 +637,9 @@
         },
         {
             "$ref": "#/$defs/segmentation_options"
+        },
+        {
+            "$ref": "#/$defs/spoqc_cell_output_options"
         },
         {
             "$ref": "#/$defs/qc_options"

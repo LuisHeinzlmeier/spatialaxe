@@ -1,0 +1,32 @@
+name: cell_qc_anndata
+description: Publish the complete SpatialData bundle with SpoQC image, label and table annotations.
+keywords:
+  - spatialomics
+  - quality control
+  - anndata
+tools:
+  - anndata:
+      description: Annotated data matrices for Python.
+      homepage: https://anndata.readthedocs.io/
+      licence: ["BSD-3-Clause"]
+input:
+  - meta:
+      type: map
+      description: Sample metadata including the sample ID.
+  - spatialdata:
+      type: directory
+      description: SpatialData bundle with the input table and cell labels.
+  - masks:
+      type: directory
+      description: SpoQC output folders with smoothed masks and per-cell metrics.
+  - stainings:
+      type: list
+      description: Expected staining indices for the HQPR masks.
+output:
+  - spatialdata:
+      - meta:
+          type: map
+          description: Sample metadata.
+      - "*_qc.zarr":
+          type: directory
+          description: Complete annotated copy of the input SpatialData bundle.
