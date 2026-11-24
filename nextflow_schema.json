@@ -415,6 +415,12 @@
                 },
                 "spoqc": {
                     "type": "boolean"
+                },
+                "spoqc_container": {
+                    "type": "string",
+                    "default": "heylf/spoqc:0.0.1",
+                    "description": "Container image used for all spoQC steps.",
+                    "fa_icon": "fab fa-docker"
                 }
             }
         },
