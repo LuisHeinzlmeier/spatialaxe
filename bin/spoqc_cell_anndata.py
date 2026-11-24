@@ -4,6 +4,7 @@
 import argparse
 import json
 import re
+import tempfile
 from pathlib import Path
 
 import anndata as ad
@@ -46,9 +47,9 @@ def probability_batches(path, column, expected_pixels):
                 yield batch.column(0).to_numpy(zero_copy_only=False).astype(np.float32, copy=False)
 
 
-def map_blocks(batches, height, width):
+def map_blocks(batches, height, width, block_pixels=BLOCK_PIXELS):
     remaining = np.empty(0, dtype=np.float32)
-    rows_per_block = max(1, BLOCK_PIXELS // width)
+    rows_per_block = max(1, block_pixels // width)
     for y in range(0, height, rows_per_block):
         end = min(y + rows_per_block, height)
         pixels = (end - y) * width
@@ -64,42 +65,181 @@ def map_blocks(batches, height, width):
         yield y, end, values
 
 
+def map_grid(map_path, height, width):
+    pixels = 0
+    for part in parquet_parts(map_path):
+        with pq.ParquetFile(part) as reader:
+            pixels += reader.metadata.num_rows
+    for level in range(5):
+        scale = 2 ** level
+        shape = (height // scale, width // scale)
+        if shape[0] * shape[1] == pixels:
+            return shape, scale
+    raise ValueError(f"{map_path} pixel count does not match a morphology grid")
+
+
 def summarize_map(labels, ids, path, column):
     height, width = labels.shape
+    (rows, cols), scale = map_grid(path, height, width)
     order = ids.argsort()
     sorted_ids = ids[order]
     count = np.zeros(len(ids), dtype=np.int64)
+    observed = np.zeros(len(ids), dtype=np.int64)
     sums = np.zeros(len(ids), dtype=np.float64)
     hist = np.zeros((len(ids), BINS), dtype=np.uint32)
-    batches = probability_batches(path, column, height * width)
+    batches = probability_batches(path, column, rows * cols)
 
-    # Each map is stored bottom-to-top. Read the corresponding label rows in that order.
-    for start, end, values in map_blocks(batches, height, width):
-        block = np.asarray(labels[height - end:height - start, :])[::-1].ravel()
+    def match_labels(block):
         positive = block > 0
         candidates = block[positive]
         positions = np.searchsorted(sorted_ids, candidates)
         in_range = positions < len(sorted_ids)
         matched = in_range.copy()
         matched[in_range] = sorted_ids[positions[in_range]] == candidates[in_range]
-        rows = order[positions[matched]]
-        probabilities = np.clip(values[positive][matched], 0, 1)
-        if not np.isfinite(probabilities).all():
-            raise ValueError(f"{path} has non-finite probabilities inside cell labels")
-        count += np.bincount(rows, minlength=len(ids))
-        sums += np.bincount(rows, weights=probabilities, minlength=len(ids))
-        scores = np.rint(probabilities * (BINS - 1)).astype(np.intp)
-        np.add.at(hist, (rows, scores), 1)
+        return positive, matched, order[positions[matched]]
 
-    mean = np.divide(sums, count, out=np.full(len(ids), np.nan), where=count > 0)
+    # Each map is stored bottom-to-top. Read the corresponding label rows in that order.
+    for start, end, values in map_blocks(batches, rows, cols, BLOCK_PIXELS // scale**2):
+        block = np.asarray(labels[(rows - end) * scale:(rows - start) * scale, :])[::-1].ravel()
+        positive, matched, indices = match_labels(block)
+        count += np.bincount(indices, minlength=len(ids))
+        if scale != 1:
+            expanded = values.reshape(end - start, cols).repeat(scale, axis=0).repeat(scale, axis=1)
+            values = np.pad(expanded, ((0, 0), (0, width - cols * scale)), constant_values=np.nan).ravel()
+        probabilities = values[positive][matched]
+        valid = np.isfinite(probabilities)
+        indices, probabilities = indices[valid], np.clip(probabilities[valid], 0, 1)
+        observed += np.bincount(indices, minlength=len(ids))
+        sums += np.bincount(indices, weights=probabilities, minlength=len(ids))
+        scores = np.rint(probabilities * (BINS - 1)).astype(np.intp)
+        np.add.at(hist, (indices, scores), 1)
+
+    if rows * scale < height:
+        _, _, indices = match_labels(np.asarray(labels[rows * scale:, :]).ravel())
+        count += np.bincount(indices, minlength=len(ids))
+    mean = np.divide(sums, observed, out=np.full(len(ids), np.nan), where=observed > 0)
     median = np.full(len(ids), np.nan)
     for start in range(0, len(ids), 4096):
         end = min(start + 4096, len(ids))
         cumulative = hist[start:end].cumsum(axis=1, dtype=np.uint32)
-        target = (count[start:end] + 1) // 2
+        target = (observed[start:end] + 1) // 2
         values = (cumulative >= target[:, None]).argmax(axis=1) / (BINS - 1)
         median[start:end] = np.where(target > 0, values, np.nan)
     return mean.astype(np.float32), median.astype(np.float32), count
+
+
+def write_qc_spatialdata(path, input_path, maps, table):
+    import dask
+    import dask.array as da
+    import spatialdata as sd
+    from multiscale_spatial_image.to_multiscale import Methods
+    from spatialdata.models import Image2DModel, Labels2DModel, TableModel
+    from spatialdata.transformations import Identity, Scale
+
+    source = sd.read_zarr(str(input_path), selection=("images", "shapes"))
+    morphology = source.images["morphology_focus"]
+    full = morphology["scale0"].image if hasattr(morphology, "keys") else morphology
+    height, width = full.sizes["y"], full.sizes["x"]
+    stainings = [str(name) for name in full.coords["c"].values]
+    ordered = sorted(maps, key=lambda name: (0, int(name[5:])) if name.startswith("hqpr_")
+                     else (1 if name == "hqtr" else 2, 0))
+    names = []
+    for key in ordered:
+        if key.startswith("hqpr_"):
+            index = int(key[5:])
+            if index >= len(stainings):
+                raise ValueError(f"Staining {index} is missing from morphology_focus")
+            label = re.sub(r"[^a-z0-9]+", "_", stainings[index].lower()).strip("_")
+            if not label:
+                raise ValueError(f"Staining {index} has no usable name")
+            names.append(f"hqpr_{label}")
+        else:
+            names.append(key)
+    if len(names) != len(set(names)):
+        raise ValueError("Staining names must be unique after normalizing")
+
+    shapes = source.shapes["cell_circles"]
+    del source
+    if not shapes.index.is_unique or not table.obs["cell_id"].isin(shapes.index).all():
+        raise ValueError("Table cell IDs must match unique cell_circles IDs")
+    table.obs["spoqc_region"] = pd.Categorical(["cell_circles"] * table.n_obs)
+    table = TableModel.parse(table, region="cell_circles", region_key="spoqc_region", instance_key="cell_id")
+
+    grids = {key: map_grid(maps[key], height, width) for key in ordered}
+    if len(set(grids.values())) != 1:
+        raise ValueError("SpoQC channels occupy different grids and cannot be stacked without resampling")
+    (rows, cols), scale = grids[ordered[0]]
+    transform = Identity() if scale == 1 else Scale([scale, scale], axes=("y", "x"))
+    missing = {}
+    with tempfile.TemporaryDirectory(prefix="spoqc-rasters-", dir=".") as scratch:
+        store = zarr.open_group(scratch, mode="w")
+        channels = []
+        labels = {}
+        mask_arrays = []
+        for key, name in zip(ordered, names):
+            stripe = max(1, BLOCK_PIXELS // cols)
+            probability = store.create_array(f"p_{name}", shape=(rows, cols), chunks=(stripe, 4096), dtype="u1")
+            mask = store.create_array(f"m_{name}", shape=(rows, cols), chunks=(stripe, 4096), dtype="u1")
+            missing_probability = missing_mask = 0
+            for suffix, raster in (("beliefs", probability), ("mask", mask)):
+                batches = probability_batches(maps[key], f"{key}_{suffix}_smoothed", rows * cols)
+                for start, end, flat in map_blocks(batches, rows, cols):
+                    valid = np.isfinite(flat)
+                    if suffix == "beliefs":
+                        missing_probability += int(np.count_nonzero(~valid))
+                        encoded = np.full(flat.shape, 255, dtype=np.uint8)
+                        encoded[valid] = np.rint(np.clip(flat[valid], 0, 1) * 254).astype(np.uint8)
+                    else:
+                        missing_mask += int(np.count_nonzero(~valid))
+                        if np.any(valid & (flat != 0) & (flat != 1)):
+                            raise ValueError(f"{key} contains a non-binary mask value")
+                        if not valid.all():
+                            continue
+                        encoded = flat.astype(np.uint8)
+                    raster[rows - end:rows - start, :] = encoded.reshape(end - start, cols)[::-1]
+            missing[name] = {"pixels": rows * cols, "beliefs_missing": missing_probability,
+                             "mask_missing": missing_mask}
+            print(f"{name}: {missing_probability} missing beliefs, {missing_mask} missing mask pixels "
+                  f"out of {rows * cols}", flush=True)
+            if missing_mask:
+                raise ValueError(f"{key} has missing mask values that cannot be represented as binary uint8")
+            channels.append(da.from_zarr(probability))
+            mask_arrays.append(da.from_zarr(mask))
+            labels[f"spoqc_mask_{name}"] = Labels2DModel.parse(
+                mask_arrays[-1], dims=("y", "x"), transformations={"global": transform},
+                scale_factors=[2, 2, 2, 2], chunks=(4096, 4096), method=Methods.DASK_IMAGE_NEAREST,
+            )
+
+        if len(mask_arrays) > 255:
+            raise ValueError("Combined mask has too many channels for uint8")
+        labels["spoqc_mask"] = Labels2DModel.parse(
+            da.stack(mask_arrays).sum(axis=0, dtype=np.uint8), dims=("y", "x"),
+            transformations={"global": transform}, scale_factors=[2, 2, 2, 2],
+            chunks=(4096, 4096), method=Methods.DASK_IMAGE_NEAREST,
+        )
+        table.uns["spoqc_mask_max"] = len(mask_arrays)
+        table.uns["spoqc_missing_pixels"] = missing
+        pixel_data = da.stack(channels)
+        image = Image2DModel.parse(
+            pixel_data, dims=("c", "y", "x"), c_coords=names,
+            transformations={"global": transform}, scale_factors=[2, 2, 2, 2],
+            chunks=(1, 4096, 4096), method=Methods.XARRAY_COARSEN,
+        )
+        # Keep the image pyramid metadata, but select actual encoded pixels.
+        # Averaging the encoded bytes would mix missing value 255 into valid pixels.
+        for index, level in enumerate(image.children.values()):
+            factor = 2 ** index
+            plane = level["image"]
+            y, x = plane.sizes["y"], plane.sizes["x"]
+            offset = factor // 2
+            data = pixel_data[:, offset:y * factor:factor, offset:x * factor:factor]
+            data = data.rechunk((1, 4096, 4096))
+            level.dataset = level.to_dataset().assign(image=plane.copy(data=data))
+        result = sd.SpatialData(images={"spoqc_maps": image}, labels=labels,
+                                shapes={"cell_circles": shapes}, tables={"table": table})
+        with dask.config.set(scheduler="threads", num_workers=2):
+            result.write(path)
+        print(sd.read_zarr(path))
 
 
 def collect_outputs(directories):
@@ -173,6 +313,8 @@ def export(args):
     result = ad.AnnData(obs=obs, var=var, obsm=obsm)
     with ad.settings.override(zarr_write_format=2):
         result.write_zarr(args.output)
+    if args.spatialdata_output:
+        write_qc_spatialdata(args.spatialdata_output, args.spatialdata, maps, result.copy())
     if args.h5ad:
         result.write_h5ad(args.h5ad)
     print(f"Exported {result.n_obs} cells and {result.obs.shape[1]} observation columns to {args.output}")
@@ -184,6 +326,7 @@ def main():
     parser.add_argument("--spoqc-output", type=Path, nargs="+", required=True)
     parser.add_argument("--staining", action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--spatialdata-output", type=Path)
     parser.add_argument("--h5ad", type=Path)
     export(parser.parse_args())
 

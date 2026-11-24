@@ -26,11 +26,18 @@ input:
       type: boolean
       description: Also write the AnnData in HDF5 format.
 output:
-  - zarr:
+  - spatialdata:
       - meta:
           type: map
           description: Sample metadata.
       - "*_qc.zarr":
+          type: directory
+          description: SpatialData with QC maps, masks, cell circles and the per-cell table.
+  - zarr:
+      - meta:
+          type: map
+          description: Sample metadata.
+      - "*_qc.anndata.zarr":
           type: directory
           description: AnnData Zarr store with per-cell QC metrics.
   - h5ad:

@@ -411,7 +411,7 @@
                 "spoqc_cell_anndata": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Write a per-sample QC AnnData Zarr store when SpoQC is enabled.",
+                    "description": "Write per-sample QC SpatialData and AnnData Zarr stores when SpoQC is enabled.",
                     "fa_icon": "fas fa-table"
                 },
                 "spoqc_cell_h5ad": {
