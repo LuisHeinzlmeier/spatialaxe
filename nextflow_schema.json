@@ -403,6 +403,25 @@
                 }
             }
         },
+        "spoqc_cell_output_options": {
+            "title": "Per-cell SpoQC output options",
+            "type": "object",
+            "description": "Export per-cell metrics and smoothed-map summaries in AnnData format.",
+            "properties": {
+                "spoqc_cell_anndata": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Write a per-sample QC AnnData Zarr store when SpoQC is enabled.",
+                    "fa_icon": "fas fa-table"
+                },
+                "spoqc_cell_h5ad": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Also save the per-cell QC AnnData as H5AD.",
+                    "fa_icon": "fas fa-file"
+                }
+            }
+        },
         "qc_options": {
             "title": "QC options",
             "type": "object",
@@ -595,6 +614,9 @@
         },
         {
             "$ref": "#/$defs/segmentation_options"
+        },
+        {
+            "$ref": "#/$defs/spoqc_cell_output_options"
         },
         {
             "$ref": "#/$defs/qc_options"

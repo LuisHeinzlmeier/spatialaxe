@@ -1,0 +1,42 @@
+name: cell_qc_anndata
+description: Export per-cell SpoQC metrics and pixel summaries as AnnData.
+keywords:
+  - spatialomics
+  - quality control
+  - anndata
+tools:
+  - anndata:
+      description: Annotated data matrices for Python.
+      homepage: https://anndata.readthedocs.io/
+      licence: ["BSD-3-Clause"]
+input:
+  - meta:
+      type: map
+      description: Sample metadata including the sample ID.
+  - spatialdata:
+      type: directory
+      description: SpatialData bundle with the input table and cell labels.
+  - masks:
+      type: directory
+      description: SpoQC output folders with smoothed masks and per-cell metrics.
+  - stainings:
+      type: list
+      description: Expected staining indices for the HQPR masks.
+  - write_h5ad:
+      type: boolean
+      description: Also write the AnnData in HDF5 format.
+output:
+  - zarr:
+      - meta:
+          type: map
+          description: Sample metadata.
+      - "*_qc.zarr":
+          type: directory
+          description: AnnData Zarr store with per-cell QC metrics.
+  - h5ad:
+      - meta:
+          type: map
+          description: Sample metadata.
+      - "*_qc.h5ad":
+          type: file
+          description: Optional copy of the same AnnData in HDF5 format.

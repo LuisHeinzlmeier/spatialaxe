@@ -5,6 +5,8 @@
 // folders; each task gets the output folders of the steps it depends on and merges them (as links).
 // The dependencies below follow the spoQC metric/prior definitions (needs_metrics / needs_priors).
 
+include { CELL_QC_ANNDATA } from '../../../modules/local/spoQC/cellanndata/main'
+
 include { SPOQC_STEP as SPOQC_ANNOTATION        } from '../../../modules/local/spoQC/step/main'
 include { SPOQC_STEP as SPOQC_GENERALQC         } from '../../../modules/local/spoQC/step/main'
 include { SPOQC_STEP as SPOQC_DOUBLETQC         } from '../../../modules/local/spoQC/step/main'
@@ -151,6 +153,17 @@ workflow SPOQC {
         "",
     )
     SPOQC_HQTR_REFINEMENT(withUpstream(ch_base_noann, [SPOQC_HQTR_CLUSTERING.out.out]), "hqtr_refinement", "")
+
+    if (params.spoqc_cell_anndata) {
+        ch_export_stainings = ch_stainings.groupTuple(by: 0)
+        ch_export_masks = SPOQC_HQCR_IDENT.out.out
+            .mix(SPOQC_HQTR_REFINEMENT.out.out, ch_hqpr_ref.map { meta, _st, directory -> [meta, directory] })
+            .groupTuple(by: 0)
+        ch_export_input = ch_sd.join(ch_export_stainings, by: 0, remainder: true)
+            .join(ch_export_masks, by: 0, remainder: true)
+            .map { meta, spatialdata, stainings, masks -> [meta, spatialdata, masks ?: [], stainings ?: []] }
+        CELL_QC_ANNDATA(ch_export_input, params.spoqc_cell_h5ad)
+    }
 
     ch_masks = SPOQC_HQCR_IDENT.out.out.map { meta, d -> [meta, 'hqcr', '', d] }
         .mix(ch_hqpr_ref.map { meta, st, d -> [meta, 'hqpr', st, d] })
