@@ -5,3 +5,4 @@ feat/reuse-spatialdata            # pending | fork-only | Use an existing Spatia
 feat/spoqc-parallel-runner        # pending | not sent | SpoQC 0.1 runner, parallel graph and resource baseline
 feat/spoqc-mask-stop              # pending | not sent | Depends on feat/spoqc-parallel-runner
 feat/spoqc-pythonpath             # pending | fork-only | Depends on feat/spoqc-parallel-runner
+feat/spoqc-plots                  # SpoQC data unchanged; pipeline flag smoke-tested | not sent | Depends on feat/spoqc-parallel-runner. Fork defaults plots off. Upstream should default plots on.
